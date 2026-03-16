@@ -1,5 +1,20 @@
 import pytest
+import mongomock
+import unittest.mock
+from unittest.mock import patch
+
+unittest.mock.patch("pymongo.MongoClient", mongomock.MongoClient).start()
+
 from app import app as flask_app
+from database.databaseConfig import db
+
+
+@pytest.fixture(autouse=True)
+def mock_db():
+    # Clear all collections
+    for collection in db.list_collection_names():
+        db.drop_collection(collection)
+    yield db
 
 @pytest.fixture
 def app():
