@@ -1,42 +1,33 @@
-from database.userdatahandler import get_user_by_username 
+import bcrypt
+import pytest
+from unittest.mock import patch
 
+@pytest.mark.parametrize(
+    "user_data, is_admin, expected_role",
+    [
+        (
+            {"username": "testuser", "email": "test@example.com", "password": "testpassword"},
+            False,
+            "user",
+        ),
+        (
+            {"username": "adminuser", "email": "admin@example.com", "password": "adminpassword"},
+            True,
+            "admin",
+        ),
+    ],
+)
+def test_complete_signup_success(client, mock_db, user_data, is_admin, expected_role):
+    """POST /api/auth/complete-signup for user and admin roles."""
+    with patch("routes.auth.is_admin_email", return_value=is_admin):
+        response = client.post("/api/auth/complete-signup", json=user_data)
 
-def test_register_success(client):
-    """Test successful registration."""
-    response = client.post("/register", data={
-        "firstname": "Test",
-        "lastname": "User",
-        "email": "test123@gmail.com",
-        "username": "testuser123",
-        "password": "password123",
-        "confirm_password": "password123",
-        "security_question": "What is your favorite book?",
-        "security_answer": "1984"
-    }, follow_redirects=True)
-
-    assert response.status_code == 200
-    assert b"Registration successful!" in response.data
-
-    # Check if user was added to the database
-    user = get_user_by_username("testuser123")
+    assert response.status_code == 201
+    data = response.get_json()
+    user = mock_db.users.find_one({"email": user_data["email"]})
     assert user is not None
-    assert user["mail_id"] == "test123@gmail.com"
-
-def test_register_password_mismatch(client):
-    """Test registration failure due to mismatched passwords."""
-    response = client.post("/register", data={
-        "firstname": "Test",
-        "lastname": "User",
-        "email": "testuser@example.com",
-        "username": "testuser123",
-        "password": "password123",
-        "confirm_password": "wrongpassword",
-        "security_question": "What is your favorite book?",
-        "security_answer": "1984"
-    })
-
-    assert response.status_code == 200
-    assert b"Passwords do not match" in response.data
-
-
-
+    assert user["username"] == user_data["username"]
+    assert bcrypt.checkpw(user_data["password"].encode('utf-8'), user["password"])
+    assert "access_token" in data
+    assert "role" in data
+    assert data["role"] == expected_role
