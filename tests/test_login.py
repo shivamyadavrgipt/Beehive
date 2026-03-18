@@ -16,14 +16,15 @@ def created_user(mock_db):
     return {"email": user_data["email"], "password": password}
 
 
-def test_login_success(client, created_user):
+@pytest.mark.parametrize("login_identifier_key", ["email", "username"])
+def test_login_success(client, created_user, login_identifier_key):
     """
-    POST /api/auth/login with valid credentials.
+    POST /api/auth/login with valid credentials (email or username).
     """
     response = client.post(
         "/api/auth/login",
         json={
-            "username": created_user["email"],
+            "username": created_user[login_identifier_key],
             "password": created_user["password"],
         },
     )
