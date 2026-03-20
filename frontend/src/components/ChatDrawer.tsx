@@ -88,7 +88,7 @@ const ChatDrawer: React.FC<ChatDrawerProps> = ({ userId, userRole, targetUserId,
       setLoading(false);
     }
   };
-
+  // Fetch user list for admin
   useEffect(() => {
     if (userRole === 'admin') fetchUserList();
   }, [userRole]);
