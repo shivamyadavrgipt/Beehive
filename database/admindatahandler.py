@@ -1,6 +1,8 @@
 from datetime import datetime
+
 from pymongo.errors import PyMongoError
 from flask import session
+
 from utils.logger import logger
 from database import databaseConfig
 
