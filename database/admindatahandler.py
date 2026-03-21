@@ -1,7 +1,9 @@
 from datetime import datetime
+
 from pymongo.errors import PyMongoError
 from flask import session
 
+from utils.logger import logger
 from database import databaseConfig
 
 beehive_admin_collection = databaseConfig.get_beehive_admin_collection()
