@@ -45,8 +45,14 @@ def get_user_by_username(username: str):
 
 # Save image to MongoDB
 def save_image(id, filename, title, description, time_created, audio_filename=None, sentiment=None):
+    try:
+        normalized_user_id = ObjectId(id)
+    except Exception:
+        # Keep compatibility with non-ObjectId legacy user IDs
+        normalized_user_id = id
+
     image = {
-        'user_id': ObjectId(id),
+        'user_id': normalized_user_id,
         'filename': filename,
         'title': title,
         'description': description,
@@ -149,7 +155,13 @@ def _parse_iso_date(date_string, field_name):
 def search_and_filter_images(user_id, search_query=None, sentiment=None, from_date=None, to_date=None, 
                              sort_by='date', sort_order='desc', limit=12, offset=0):
     try:
-        query = {'user_id': user_id}
+        try:
+            normalized_user_id = ObjectId(user_id)
+        except Exception:
+            # Keep compatibility with non-ObjectId legacy user IDs
+            normalized_user_id = user_id
+
+        query = {'user_id': normalized_user_id}
         update_last_seen(user_id)
         if search_query and search_query.strip():
             query['$text'] = {'$search': search_query.strip()}
