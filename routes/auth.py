@@ -6,11 +6,14 @@ import bcrypt
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
+from bson import ObjectId
+from bson.errors import InvalidId
+
 from utils.validation import validate_email, validate_otp, sanitize_string, ValidationError
 from database.databaseConfig import db
 from database.userdatahandler import update_last_seen
 from utils.roles import is_admin_email
-from utils.jwt_auth import create_access_token
+from utils.jwt_auth import create_access_token, require_auth
 from database.databaseConfig import beehive
 
 auth_bp = Blueprint("auth", __name__)
@@ -395,3 +398,47 @@ def google_auth():
         "access_token": token,
         "role": role
     }), 200
+
+
+@auth_bp.route("/change-password", methods=["PATCH"])
+@require_auth
+def change_password():
+    """Allow an authenticated user to change their own password.
+
+    Requires the current password for verification before updating.
+    Body: { "current_password": "...", "new_password": "..." }
+    """
+    data = request.get_json(force=True)
+
+    try:
+        current_password = sanitize_string(data.get("current_password"), field_name="current_password")
+        new_password = sanitize_string(data.get("new_password"), field_name="new_password")
+    except ValidationError as e:
+        return jsonify({"error": str(e)}), 400
+
+    if len(new_password) < 8:
+        return jsonify({"error": "Password must be at least 8 characters"}), 400
+
+    try:
+        user_id = ObjectId(request.current_user["id"])
+    except InvalidId:
+        return jsonify({"error": "Invalid user"}), 400
+
+    user = db.users.find_one({"_id": user_id})
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    stored_password = user.get("password")
+    if not stored_password:
+        return jsonify({"error": "Password not set. Use password reset instead."}), 400
+
+    if not bcrypt.checkpw(current_password.encode(), stored_password):
+        return jsonify({"error": "Current password is incorrect"}), 401
+
+    if bcrypt.checkpw(new_password.encode(), stored_password):
+        return jsonify({"error": "New password must be different from current password"}), 400
+
+    hashed = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt())
+    db.users.update_one({"_id": user_id}, {"$set": {"password": hashed}})
+
+    return jsonify({"message": "Password updated successfully"}), 200
