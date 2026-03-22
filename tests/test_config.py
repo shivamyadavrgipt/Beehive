@@ -41,6 +41,12 @@ def test_validate_config_weak_flask_secret(monkeypatch):
         Config.validate_config()
 
 
+def test_validate_config_weak_jwt_secret(monkeypatch):
+    monkeypatch.setattr(Config, 'JWT_SECRET', "secret")
+    with pytest.raises(SystemExit):
+        Config.validate_config()
+
+
 def test_validate_config_missing_jwt_secret(monkeypatch):
     monkeypatch.setattr(Config, 'JWT_SECRET', None)
     with pytest.raises(SystemExit):
