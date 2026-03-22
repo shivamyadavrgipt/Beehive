@@ -69,25 +69,26 @@ const Dashboard = () => {
   const [filterUser, setFilterUser] = useState('');
   const [filterFromDate, setFilterFromDate] = useState('');
   const [filterToDate, setFilterToDate] = useState('');
+  // pagination state
+  const [page, setPage] = useState(1);
+  const limit = 10;
 
   const location = useLocation();
 
   useEffect(() => {
-    // if user filter provided in query string, pre-populate
     const params = new URLSearchParams(location.search);
     const userParam = params.get('user');
     if (userParam) {
       setFilterUser(userParam);
     }
     fetchDashboardData();
-  }, [location.search, sortOption, filterFromDate, filterToDate, filterUser]);
+  }, [location.search, sortOption, filterFromDate, filterToDate, filterUser, page]);
 
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      // Get the JWT token from helper
       const token = getToken();
 
       const headers: Record<string, string> = {
@@ -97,9 +98,9 @@ const Dashboard = () => {
         headers['Authorization'] = `Bearer ${token}`;
       }
       
-      // build query params to send filtering/sorting to server
       const qp = new URLSearchParams();
-      qp.set('limit', '50');
+      qp.set('limit', String(limit));
+      qp.set('page', String(page));
       if (filterUser) qp.set('user', filterUser);
       if (filterFromDate) qp.set('from', filterFromDate);
       if (filterToDate) qp.set('to', filterToDate);
@@ -265,7 +266,6 @@ const Dashboard = () => {
                     <tr className="border-b border-gray-200 dark:border-gray-700">
                       <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Title</th>
                       <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">User</th>
-                      {/* <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Type</th> */}
                       <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Timestamp</th>
                     </tr>
                   </thead>
@@ -286,6 +286,30 @@ const Dashboard = () => {
                 </table>
               </div>
             )}
+
+            {/* Pagination UI */}
+            <div className="flex justify-between items-center mt-4">
+              <button
+                onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+                disabled={page === 1}
+                className="px-4 py-2 bg-gray-200 rounded disabled:opacity-50"
+              >
+                Previous
+              </button>
+
+              <span className="text-sm">
+                Page {page}
+              </span>
+
+              <button
+                onClick={() => setPage((prev) => prev + 1)}
+                disabled={recentUploads.length < limit}
+                className="px-4 py-2 bg-gray-200 rounded disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
+
           </div>
         </div>
       </div>
