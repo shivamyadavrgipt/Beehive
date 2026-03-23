@@ -26,6 +26,7 @@ const MainLayout = () => {
     { name: "Home", href: "/dashboard" },
     { name: "Gallery", href: "/gallery" },
     { name: "Upload", href: "/upload" },
+    { name: "Settings", href: "/settings" },
   ];
 
   return (
