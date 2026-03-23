@@ -327,6 +327,101 @@ def _get_paginated_images_by_user(user_id, page=1, page_size=12, filters=None):
             'totalPages': 0
         }
 
+def get_user_stats(user_id, trend_days=7):
+    """
+    Return upload statistics for a single user.
+
+    Returns:
+        dict with keys: total_uploads, voice_notes, sentiments (dict),
+        daily_trend (list), last_upload_at (ISO string or None)
+    """
+    try:
+        today_utc = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        trend_start = today_utc - timedelta(days=trend_days - 1)
+
+        pipeline = [
+            {"$match": {"user_id": user_id}},
+            {
+                "$facet": {
+                    "total": [{"$count": "count"}],
+                    "voice_notes": [
+                        {"$match": {"audio_filename": {"$nin": [None, ""]}}},
+                        {"$count": "count"},
+                    ],
+                    "sentiments": [
+                        {"$group": {"_id": "$sentiment", "count": {"$sum": 1}}}
+                    ],
+                    "daily_trend": [
+                        {"$match": {"created_at": {"$gte": trend_start}}},
+                        {
+                            "$group": {
+                                "_id": {
+                                    "$dateToString": {
+                                        "format": "%Y-%m-%d",
+                                        "date": "$created_at",
+                                    }
+                                },
+                                "count": {"$sum": 1},
+                            }
+                        },
+                        {"$sort": {"_id": 1}},
+                    ],
+                    "last_upload": [
+                        {"$sort": {"created_at": -1}},
+                        {"$limit": 1},
+                        {"$project": {"created_at": 1}},
+                    ],
+                }
+            },
+        ]
+
+        result = list(beehive_image_collection.aggregate(pipeline))[0]
+
+        # Sentiments map
+        sentiment_counts = {
+            item["_id"]: item["count"]
+            for item in result.get("sentiments", [])
+            if item.get("_id")
+        }
+
+        # Fill in every day of the trend window (even zero-upload days)
+        upload_map = {item["_id"]: item["count"] for item in result.get("daily_trend", [])}
+        daily_trend = []
+        for i in range(trend_days):
+            date_str = (trend_start + timedelta(days=i)).strftime("%Y-%m-%d")
+            daily_trend.append({"date": date_str, "count": upload_map.get(date_str, 0)})
+
+        # Last upload timestamp
+        last_upload_docs = result.get("last_upload", [])
+        last_upload_at = None
+        if last_upload_docs:
+            ts = last_upload_docs[0].get("created_at")
+            if ts:
+                last_upload_at = ts.isoformat() if hasattr(ts, "isoformat") else str(ts)
+
+        return {
+            "total_uploads": result["total"][0]["count"] if result.get("total") else 0,
+            "voice_notes": result["voice_notes"][0]["count"] if result.get("voice_notes") else 0,
+            "sentiments": {
+                "positive": sentiment_counts.get("positive", 0),
+                "negative": sentiment_counts.get("negative", 0),
+                "neutral": sentiment_counts.get("neutral", 0),
+            },
+            "daily_trend": daily_trend,
+            "last_upload_at": last_upload_at,
+        }
+
+    except Exception as e:
+        logger.error(f"Error in get_user_stats for user {user_id}: {e}")
+        return {
+            "total_uploads": 0,
+            "voice_notes": 0,
+            "sentiments": {"positive": 0, "negative": 0, "neutral": 0},
+            "daily_trend": [],
+            "last_upload_at": None,
+        }
+
+
 # Get images by sentiments list from MongoDB ( Route to be used with the dreams prototype for analysis page)
 # def get_images_by_sentiments(username, sentiment_list, match_all):
 #     if match_all:

@@ -43,6 +43,7 @@ from database.userdatahandler import (
     get_image_by_id,
     get_image_by_audio_filename,
     get_images_by_user,
+    get_user_stats,
     search_and_filter_images,
     get_user_by_username,
     save_image,
@@ -797,6 +798,19 @@ def user_images_show():
     except Exception as e:
         logging.error(f"Error fetching user uploads: {str(e)}")
         return jsonify({"error": "Failed to fetch uploads. Please try again."}), 500
+
+
+@app.route("/api/user/stats", methods=["GET"])
+@require_auth
+def user_stats():
+    """Return upload statistics for the authenticated user."""
+    try:
+        user_id = ObjectId(request.current_user["id"])
+    except Exception:
+        return jsonify({"error": "Invalid user"}), 400
+
+    stats = get_user_stats(user_id)
+    return jsonify(stats), 200
 
 
 @app.route("/api/admin/notifications", methods=["GET"])
