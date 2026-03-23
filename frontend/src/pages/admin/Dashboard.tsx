@@ -83,7 +83,7 @@ const Dashboard = () => {
       setFilterUser(userParam);
     }
     fetchDashboardData();
-  }, [location.search, sortOption, filterFromDate, filterToDate, filterUser,page,]);
+  }, [location.search, sortOption, filterFromDate, filterToDate, filterUser, page]);
 
   const fetchDashboardData = async () => {
     try {
