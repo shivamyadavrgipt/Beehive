@@ -439,6 +439,6 @@ def change_password():
         return jsonify({"error": "New password must be different from current password"}), 400
 
     hashed = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt())
-    db.users.update_one({"_id": user_id}, {"$set": {"password": hashed}})
+    db.users.update_one({"_id": user_id}, {"$set": {"password": hashed, "last_active": datetime.now(timezone.utc)}})
 
     return jsonify({"message": "Password updated successfully"}), 200
