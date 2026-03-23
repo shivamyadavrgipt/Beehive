@@ -28,6 +28,7 @@ import AboutUs from './pages/AboutUs';
 import PrivacyPolicy from './pages/Privacy';
 import TermsOfService from './pages/TermsofService';
 import ForgotPasswordPage from './pages/auth/ForgotPassword';
+import Settings from './pages/Settings';
 
 function App() {
   return (
@@ -56,6 +57,7 @@ function App() {
               <Route path="/dashboard" element={<Home />} />
               <Route path="/gallery" element={<Gallery />} />
               <Route path="/upload" element={<Upload />} />
+              <Route path="/settings" element={<Settings />} />
             </Route>
           </Route>
 

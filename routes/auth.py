@@ -400,6 +400,29 @@ def google_auth():
     }), 200
 
 
+@auth_bp.route("/me", methods=["GET"])
+@require_auth
+def get_current_user():
+    """Return the authenticated user's profile information."""
+    try:
+        user_id = ObjectId(request.current_user["id"])
+    except InvalidId:
+        return jsonify({"error": "Invalid user"}), 400
+
+    user = db.users.find_one({"_id": user_id})
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    return jsonify({
+        "username": user.get("username", ""),
+        "email": user.get("email", ""),
+        "provider": user.get("provider", "local"),
+        "role": user.get("role", "user"),
+        "created_at": user.get("created_at").isoformat() if user.get("created_at") else None,
+        "has_password": bool(user.get("password")),
+    }), 200
+
+
 @auth_bp.route("/change-password", methods=["PATCH"])
 @require_auth
 def change_password():
