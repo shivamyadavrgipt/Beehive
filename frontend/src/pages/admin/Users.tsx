@@ -3,8 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { getToken } from '../../utils/auth';
 import {
   UserIcon,
-  EnvelopeIcon,
-  KeyIcon,
   PhotoIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -22,7 +20,6 @@ interface User {
   lastActive: string;
   status: string;
   image: string;
-  clerkId: string;
 }
 
 const Users = () => {

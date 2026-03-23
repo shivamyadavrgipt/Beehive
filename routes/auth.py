@@ -6,14 +6,55 @@ import bcrypt
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
+from bson import ObjectId
+from bson.errors import InvalidId
+
 from utils.validation import validate_email, validate_otp, sanitize_string, ValidationError
 from database.databaseConfig import db
-from database.userdatahandler import create_user, get_user_by_username, update_last_seen
+from database.userdatahandler import update_last_seen
 from utils.roles import is_admin_email
-from utils.jwt_auth import create_access_token
+from utils.jwt_auth import create_access_token, require_auth
 from database.databaseConfig import beehive
 
 auth_bp = Blueprint("auth", __name__)
+
+OTP_VERIFICATION_WINDOW_SECONDS = 600  # 10 minutes
+
+
+def _validate_otp_verification(email: str):
+    """Check that a valid, unexpired OTP verification session exists for email.
+
+    Returns a Flask response tuple (jsonify(...), status_code) if validation
+    fails, or None if the email is properly verified.
+    """
+    otp_record = db.email_otps.find_one(
+        {"email": email, "verified": True},
+        sort=[("verified_at", -1)],
+    )
+    if not otp_record:
+        return (
+            jsonify({"error": "Email not verified. Please complete OTP verification first."}),
+            403,
+        )
+
+    verified_at = otp_record.get("verified_at")
+    if not verified_at:
+        return (
+            jsonify({"error": "Invalid verification session. Please restart signup."}),
+            403,
+        )
+
+    if verified_at.tzinfo is None:
+        verified_at = verified_at.replace(tzinfo=timezone.utc)
+
+    if (datetime.now(timezone.utc) - verified_at).total_seconds() > OTP_VERIFICATION_WINDOW_SECONDS:
+        db.email_otps.delete_many({"email": email})
+        return (
+            jsonify({"error": "Verification session expired. Please restart signup."}),
+            403,
+        )
+
+    return None
 
 # Create EMAIL OTP
 def create_email_otp(email: str) -> str:
@@ -71,7 +112,6 @@ def request_otp():
             return jsonify({"message": "OTP sent"}), 200
         else:
             current_app.logger.info("MAIL not configured, printing OTP to console")
-            print("EMAIL OTP:", otp)
             return jsonify({"message": "OTP stored (mail not configured)"}), 200
     except Exception as e:
         current_app.logger.exception("Failed to send OTP email: %s", e)
@@ -107,7 +147,13 @@ def verify_otp():
         if expires_at < datetime.now(timezone.utc):
             return jsonify({"error": "OTP expired"}), 400
 
-        db.email_otps.delete_many({"email": email})
+        # Mark email as verified instead of deleting
+        # This flag is checked by complete-signup to prevent OTP bypass
+        # Use _id to target the exact validated record, not just email
+        db.email_otps.update_one(
+            {"_id": record["_id"]},
+            {"$set": {"verified": True, "verified_at": datetime.now(timezone.utc)}},
+        )
 
         return jsonify({"message": "OTP verified"}), 200
 
@@ -134,6 +180,11 @@ def complete_signup():
     # Validate password length
     if len(password) < 8:
         return jsonify({"error": "Password must be at least 8 characters"}), 400
+    # Verify OTP session before creating the account
+    otp_error = _validate_otp_verification(email)
+    if otp_error:
+        return otp_error
+
     # Prevent duplicate email
     if db.users.find_one({"email": email}):
         return jsonify({"error": "Email already registered"}), 400
@@ -147,12 +198,14 @@ def complete_signup():
         password.encode(), bcrypt.gensalt()
     )
 
+    now_utc = datetime.now(timezone.utc)
     result = db.users.insert_one({
         "email": email,
         "username": username,
         "password": hashed_password,
         "role": role,
-        "created_at": datetime.now(timezone.utc)
+        "created_at": now_utc,
+        "last_active": now_utc
     })
 
     token = create_access_token(
@@ -213,7 +266,7 @@ def set_password():
     try:
         email = validate_email(data.get("email"))
         password = sanitize_string(data.get("password"))
-        purpose = sanitize_string(data.get("purpose"), field_name="purpose")
+        purpose = sanitize_string(data.get("purpose"), field_name="purpose").lower()
     except ValidationError as e:
         current_app.logger.warning("SET PASSWORD VALIDATION ERROR")
         return jsonify({"error": str(e)}), 400
@@ -232,24 +285,42 @@ def set_password():
         if existing_user:
             return jsonify({"error": "User already exists"}), 400
 
+        # Verify OTP session before creating the account
+        otp_error = _validate_otp_verification(email)
+        if otp_error:
+            return otp_error
+
         role = "admin" if is_admin_email(email) else "user"
 
+        now_utc = datetime.now(timezone.utc)
         user_id = db.users.insert_one({
             "email": email,
             "username": email.split("@")[0],
             "password": hashed,
             "role": role,
-            "created_at": datetime.now(timezone.utc)
+            "created_at": now_utc,
+            "last_active": now_utc
         }).inserted_id
+
+        # Cleanup OTPs
+        db.email_otps.delete_many({"email": email})
 
     elif purpose == "reset":
         if not existing_user:
             return jsonify({"error": "User not found"}), 404
 
+        # Verify OTP session before allowing password reset
+        otp_error = _validate_otp_verification(email)
+        if otp_error:
+            return otp_error
+
         db.users.update_one(
             {"email": email},
             {"$set": {"password": hashed}}
         )
+
+        # Cleanup OTPs after successful reset
+        db.email_otps.delete_many({"email": email})
 
         user_id = existing_user["_id"]
         role = existing_user.get("role", "user")
@@ -305,6 +376,7 @@ def google_auth():
         role = "admin" if is_admin_email(email) else "user"
 
         # Create a minimal Google-backed user (no local password)
+        now_utc = datetime.now(timezone.utc)
         result = db.users.insert_one({
             "email": email,
             "username": name or email.split("@")[0],
@@ -312,7 +384,8 @@ def google_auth():
             "role": role,
             "provider": "google",
             "google_id": sub,
-            "created_at": datetime.now(timezone.utc)
+            "created_at": now_utc,
+            "last_active": now_utc
         })
         user_id = str(result.inserted_id)
     else:
@@ -325,3 +398,47 @@ def google_auth():
         "access_token": token,
         "role": role
     }), 200
+
+
+@auth_bp.route("/change-password", methods=["PATCH"])
+@require_auth
+def change_password():
+    """Allow an authenticated user to change their own password.
+
+    Requires the current password for verification before updating.
+    Body: { "current_password": "...", "new_password": "..." }
+    """
+    data = request.get_json(force=True)
+
+    try:
+        current_password = sanitize_string(data.get("current_password"), field_name="current_password")
+        new_password = sanitize_string(data.get("new_password"), field_name="new_password")
+    except ValidationError as e:
+        return jsonify({"error": str(e)}), 400
+
+    if len(new_password) < 8:
+        return jsonify({"error": "Password must be at least 8 characters"}), 400
+
+    try:
+        user_id = ObjectId(request.current_user["id"])
+    except InvalidId:
+        return jsonify({"error": "Invalid user"}), 400
+
+    user = db.users.find_one({"_id": user_id})
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    stored_password = user.get("password")
+    if not stored_password:
+        return jsonify({"error": "Password not set. Use password reset instead."}), 400
+
+    if not bcrypt.checkpw(current_password.encode(), stored_password):
+        return jsonify({"error": "Current password is incorrect"}), 401
+
+    if bcrypt.checkpw(new_password.encode(), stored_password):
+        return jsonify({"error": "New password must be different from current password"}), 400
+
+    hashed = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt())
+    db.users.update_one({"_id": user_id}, {"$set": {"password": hashed, "last_active": datetime.now(timezone.utc)}})
+
+    return jsonify({"message": "Password updated successfully"}), 200

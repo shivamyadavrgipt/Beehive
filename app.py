@@ -42,15 +42,13 @@ from database.userdatahandler import (
     delete_image,
     get_image_by_id,
     get_image_by_audio_filename,
-    get_images_by_user,
     get_user_stats,
     search_and_filter_images,
-    get_user_by_username,
+    get_user_by_id,
     save_image,
     save_notification,
     update_image,
 )
-from utils.pagination import parse_pagination_params
 
 from utils.jwt_auth import require_auth,require_admin_role 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
@@ -115,8 +113,8 @@ ALLOWED_MIME_TYPES = {
     "image/gif",
     "image/webp",
     "image/heif",
-    "application/pdf",
     "image/avif",
+    "application/pdf",
 }
 
 ALLOWED_AUDIO_MIME_TYPES = {
@@ -158,19 +156,29 @@ if (
 app.config["UPLOAD_FOLDER"] = "static/uploads"
 app.config["PDF_THUMBNAIL_FOLDER"] = "static/uploads/thumbnails/"
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
-os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
+if os.getenv("FLASK_ENV") == "development":
+    os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 client_secrets_file = os.path.join(pathlib.Path(__file__).parent, "client_secret.json")
 
 
-flow = Flow.from_client_secrets_file(
-    client_secrets_file=client_secrets_file,
-    scopes=[
-        "https://www.googleapis.com/auth/userinfo.profile",
-        "https://www.googleapis.com/auth/userinfo.email",
-        "openid",
-    ],
-    redirect_uri=os.getenv("REDIRECT_URI", "http://127.0.0.1:5000/admin/login/callback"),
-)
+flow = None
+if os.path.exists(client_secrets_file):
+    try:
+        flow = Flow.from_client_secrets_file(
+            client_secrets_file=client_secrets_file,
+            scopes=[
+                "https://www.googleapis.com/auth/userinfo.profile",
+                "https://www.googleapis.com/auth/userinfo.email",
+                "openid",
+            ],
+            redirect_uri=os.getenv("REDIRECT_URI", "http://127.0.0.1:5000/admin/login/callback"),
+        )
+    except (ValueError, KeyError, json.JSONDecodeError) as e:
+        app_logger.warning(f"Failed to initialize Google OAuth flow due to invalid client secrets file: {e}")
+    except Exception as e:
+        app_logger.warning(f"Failed to initialize Google OAuth flow: {e}")
+else:
+    app_logger.warning(f"Google OAuth client secrets file not found: {client_secrets_file}. Google Login will be disabled.")
 
 
 MIME_SIZE_LIMITS = {
@@ -180,6 +188,7 @@ MIME_SIZE_LIMITS = {
     "image/gif": 8 * 1024 * 1024,
     "image/heif": 15 * 1024 * 1024,
     "image/heic": 15 * 1024 * 1024,
+    "image/avif": 15 * 1024 * 1024,
     "application/pdf": 25 * 1024 * 1024,
 }
 
@@ -338,7 +347,9 @@ AUDIO_MIME_TO_EXTENSION = {
 def upload_images():
     user_id = request.current_user["id"]
     try:
-        username = sanitize_text(request.form.get("username", ""))
+        # Look up username from DB using the authenticated user_id (fixes issue #553)
+        user_doc = get_user_by_id(user_id) or {}
+        username = user_doc.get("username") or user_doc.get("email") or "Unknown User"
         files = request.files.getlist("files")  # Supports multiple file uploads
         title = sanitize_text(request.form.get("title", ""))
         sentiment = sanitize_text(request.form.get("sentiment"))
@@ -981,4 +992,5 @@ app.register_blueprint(auth_bp, url_prefix="/api/auth")
 initialize_text_index()
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    debug_mode = os.getenv("FLASK_DEBUG", "False").strip().lower() in ("true", "1")
+    app.run(debug=debug_mode)

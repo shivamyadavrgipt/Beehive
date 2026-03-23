@@ -29,7 +29,6 @@ const AdminLayout = () => {
   const navigate = useNavigate();
 
   const adminNavigation = [
-    { name: "Landing", href: "/landing" },
     { name: "Dashboard", href: "/admin" },
     { name: "Users", href: "/admin/users" },
     { name: "Analytics", href: "/admin/analytics" },
@@ -205,7 +204,7 @@ const AdminLayout = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <nav className="bg-white dark:bg-gray-800 shadow-sm">
+      <nav className="bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex">

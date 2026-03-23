@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef, useCallback} from 'react';
-import { apiUrl } from '../utils/api';
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { apiUrl } from "../utils/api";
 
 interface ChatDrawerProps {
   userId: string;
-  userRole: 'admin' | 'user';
+  userRole: "admin" | "user";
   targetUserId?: string; // For admin, the user to chat with
   onClose: () => void;
 }
@@ -14,58 +14,43 @@ interface ChatUser {
   username: string;
 }
 
-const ChatDrawer: React.FC<ChatDrawerProps> = ({ userId, userRole, targetUserId, onClose }) => {
+const ChatDrawer: React.FC<ChatDrawerProps> = ({
+  userId,
+  userRole,
+  targetUserId,
+  onClose,
+}) => {
   // tokens are stored in localStorage under 'access_token'
   const [messages, setMessages] = useState<any[]>([]);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [adminTargetId, setAdminTargetId] = useState(targetUserId || '');
+  const [isMinimized, setIsMinimized] = useState(false);
+  const [adminTargetId, setAdminTargetId] = useState(targetUserId || "");
   const [userList, setUserList] = useState<ChatUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<ChatUser | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  // Fetch user list for admin
-  useEffect(() => {
-    if (userRole === 'admin') {
-      fetchUserList();
-    }
-  }, [userRole]);
-
-  const fetchUserList = async () => {
+  const fetchUserList = useCallback(async () => {
     try {
-      const token = localStorage.getItem('access_token');
-      const res = await fetch(apiUrl('/api/admin/users/only-users'), {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+      const token = localStorage.getItem("access_token");
+      const res = await fetch(apiUrl("/api/admin/users/only-users"), {
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) return;
       const data = await res.json();
-      setUserList(data.users || []);
-      // Auto-select first user if none selected
-      if (!selectedUser && data.users && data.users.length > 0) {
-        setSelectedUser(data.users[0]);
-        setAdminTargetId(data.users[0].id);
-      }
+      const users = data.users || [];
+      setUserList(users);
     } catch (error) {
-      console.error("Failed to fetch UserList: ",error);
+      console.error("Failed to fetch UserList: ", error);
     }
-  };
-
-  // Scroll to bottom on new messages
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, []);
 
   const fetchMessages = useCallback(async () => {
     try {
-      const id = userRole === 'admin' ? adminTargetId : userId;
+      const id = userRole === "admin" ? adminTargetId : userId;
       if (!id) return;
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem("access_token");
       const res = await fetch(apiUrl(`/api/chat/messages?user_id=${id}`), {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) return;
       const data = await res.json();
@@ -75,145 +60,213 @@ const ChatDrawer: React.FC<ChatDrawerProps> = ({ userId, userRole, targetUserId,
     }
   }, [userRole, adminTargetId, userId]);
 
-  // Poll for messages
-  useEffect(() => {
-    if (!userId || (userRole === 'admin' && !adminTargetId)) return;
-    fetchMessages();
-    const interval = window.setInterval(fetchMessages, 5000);
-    return () => clearInterval(interval);
-  }, [userId, userRole, adminTargetId, fetchMessages]);
-
   const sendMessage = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || loading) return;
     setLoading(true);
     try {
       const payload = {
-        to_id: userRole === 'admin' ? adminTargetId : 'admin',
-        to_role: userRole === 'admin' ? 'user' : 'admin',
+        to_id: userRole === "admin" ? adminTargetId : "admin",
+        to_role: userRole === "admin" ? "user" : "admin",
         content: input.trim(),
       };
-      const token = localStorage.getItem('access_token');
-      const res = await fetch(apiUrl('/api/chat/send'), {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+      const token = localStorage.getItem("access_token");
+      const res = await fetch(apiUrl("/api/chat/send"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
       });
       if (res.ok) {
-        setInput('');
+        setInput("");
         fetchMessages();
       }
     } finally {
       setLoading(false);
     }
   };
+  // Fetch user list for admin
+  useEffect(() => {
+    if (userRole === "admin") fetchUserList();
+  }, [userRole]);
 
-  // Handle user selection (admin)
-  const handleUserSelect = (user: ChatUser) => {
-    setSelectedUser(user);
-    setAdminTargetId(user.id);
-  };
+  // Scroll to bottom on new messages
+  useEffect(() => {
+    if (!userId || (userRole === "admin" && !adminTargetId)) return;
+    fetchMessages();
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        fetchMessages();
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [userId, userRole, adminTargetId, fetchMessages]);
+
+  useEffect(() => {
+    if (!isMinimized) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, isMinimized]);
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      {/* Overlay */}
-      <div className="fixed inset-0 bg-black/40" onClick={onClose}></div>
-      {/* Drawer */}
-      <div className="relative w-full sm:max-w-2xl bg-white dark:bg-slate-900 h-full shadow-2xl flex flex-col sm:flex-row rounded-none sm:rounded-l-2xl border-l-0 sm:border-l-4 border-yellow-500">
-        {/* Responsive: User List for Admin (stacked on top for mobile, left for desktop) */}
-        {userRole === 'admin' && (
-          <div className="w-full sm:w-64 border-b sm:border-b-0 sm:border-r border-yellow-500 bg-white dark:bg-slate-900 flex flex-col rounded-none sm:rounded-l-2xl">
-            <div className="p-3 sm:p-4 font-bold border-b border-yellow-500 text-gray-700 dark:text-gray-200 bg-white dark:bg-slate-900 rounded-none sm:rounded-tl-2xl text-base sm:text-lg">Users</div>
-            <div className="flex-1 overflow-y-auto custom-scrollbar max-h-32 sm:max-h-none">
-              {userList.length === 0 ? (
-                <div className="text-yellow-700 text-center mt-4 sm:mt-8 text-sm sm:text-base">Loading...</div>
-              ) : (
-                <ul className="flex flex-row sm:flex-col overflow-x-auto sm:overflow-x-visible">
+    <div className="fixed bottom-0 right-4 z-[9999] flex items-end font-sans">
+      <div
+        className={`
+        flex flex-col bg-white dark:bg-slate-900 
+        shadow-[0_-4px_24px_rgba(0,0,0,0.15)] border border-gray-200 dark:border-slate-700
+        rounded-t-xl transition-all duration-300 ease-in-out
+        ${isMinimized ? "h-12" : "h-[480px]"} 
+        ${userRole === "admin" && !isMinimized ? "w-[480px]" : "w-72 sm:w-80"}
+      `}
+      >
+        {/* Header */}
+        <button
+          type="button"
+          onClick={() => setIsMinimized(!isMinimized)}
+          className="w-full text-left bg-transparent border-none flex items-center justify-between px-4 py-3 border-b border-yellow-500 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800/50 rounded-t-xl"
+        >
+          <div className="flex items-center gap-2 truncate">
+            <div className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse"></div>
+            <span className="text-sm font-bold text-gray-800 dark:text-gray-100 truncate">
+              {userRole === "admin"
+                ? selectedUser
+                  ? `Chat: ${selectedUser.name}`
+                  : "Users"
+                : "Support"}
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-gray-400 text-xs">
+              {isMinimized ? "Expand" : "Hide"}
+            </span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onClose();
+              }}
+              className="text-gray-400 hover:text-red-500 transition-colors text-2xl leading-none"
+            >
+              &times;
+            </button>
+          </div>
+        </button>
+
+        {!isMinimized && (
+          <div className="flex flex-1 overflow-hidden">
+            {/* Improved Admin Sidebar */}
+            {userRole === "admin" && (
+              <div className="w-40 border-r border-yellow-500 dark:border-slate-800 flex flex-col bg-gray-50/50 dark:bg-slate-950/50">
+                <div className="flex-1 overflow-y-auto custom-scrollbar">
                   {userList.map((user) => (
-                    <li
+                    <div
                       key={user.id}
-                      className={`cursor-pointer px-3 py-2 sm:px-4 sm:py-3 border-b-0 sm:border-b border-r sm:border-r-0 border-gray-100 dark:border-slate-700 hover:bg-yellow-50 dark:hover:bg-slate-800 transition-colors duration-150 ${selectedUser?.id === user.id ? 'bg-yellow-100 dark:bg-slate-700 font-bold text-yellow-700 dark:text-yellow-400' : 'text-gray-800 dark:text-gray-200'} text-xs sm:text-base whitespace-nowrap`}
-                      onClick={() => handleUserSelect(user)}
+                      className={`cursor-pointer px-3 py-3 border-b border-yellow-500 dark:border-slate-800 transition-colors
+                        ${
+                          selectedUser?.id === user.id
+                            ? "bg-yellow-400 text-black font-bold"
+                            : "hover:bg-gray-200/50 dark:hover:bg-slate-800 text-gray-700 dark:text-gray-300 font-medium"
+                        }`}
+                      onClick={() => {
+                        setSelectedUser(user);
+                        setAdminTargetId(user.id);
+                      }}
                     >
-                      <div className="truncate">{user.name || user.id}</div>
-                    </li>
+                      <div className="truncate text-xs leading-tight">
+                        {user.name || user.username || "User"}
+                      </div>
+                    </div>
                   ))}
-                </ul>
-              )}
+                </div>
+              </div>
+            )}
+
+            {/* Message Area */}
+            <div className="flex-1 flex flex-col bg-white dark:bg-slate-900 min-w-0">
+              <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar">
+                {messages.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-xs text-gray-400 italic">
+                    No messages yet.
+                  </div>
+                ) : (
+                  messages.map((msg, idx) => (
+                    <div
+                      key={msg._id || idx}
+                      className={`flex ${msg.from_id === userId ? "justify-end" : "justify-start"}`}
+                    >
+                      <div
+                        className={`max-w-[88%] px-3 py-2 rounded-2xl text-[13px] shadow-sm leading-snug
+                        ${
+                          msg.from_id === userId
+                            ? "bg-yellow-400 text-black rounded-tr-none"
+                            : "bg-gray-100 dark:bg-slate-800 text-gray-800 dark:text-gray-200 rounded-tl-none"
+                        }`}
+                      >
+                        {msg.content}
+                        <div className="text-[9px] opacity-50 mt-1 text-right">
+                          {msg.timestamp
+                            ? new Date(msg.timestamp).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })
+                            : ""}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Input Bar */}
+              <div className="p-3 border-t border-yellow-500 dark:border-slate-800">
+                <div className="relative flex items-center">
+                  <input
+                    type="text"
+                    className="w-full pl-4 pr-10 py-2 bg-gray-100 dark:bg-slate-800 border-none rounded-full text-sm focus:ring-1 focus:ring-yellow-400 text-gray-900 dark:text-white"
+                    placeholder="Message..."
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") sendMessage();
+                    }}
+                    disabled={
+                      loading || (userRole === "admin" && !adminTargetId)
+                    }
+                  />
+                  <button
+                    type="button"
+                    onClick={sendMessage}
+                    disabled={
+                      loading ||
+                      !input.trim() ||
+                      (userRole === "admin" && !adminTargetId)
+                    }
+                    aria-label="Send message"
+                    className="absolute right-1 p-1.5 text-yellow-600 dark:text-yellow-400 disabled:opacity-20 hover:scale-110 transition-transform"
+                  >
+                    <svg
+                      className="w-5 h-5 rotate-90"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}
-        {/* Chat Panel */}
-        <div className="flex-1 flex flex-col bg-white rounded-none sm:rounded-r-2xl">
-          <div className="flex items-center justify-between p-3 sm:p-4 border-b border-yellow-500 bg-white dark:bg-slate-900 rounded-none sm:rounded-tr-2xl">
-            <h2 className="text-base sm:text-lg font-bold text-gray-700 dark:text-gray-200">
-              Chat {userRole === 'admin' ? `with ${selectedUser?.name || ''}` : 'with Admin'}
-            </h2>
-            <button onClick={onClose} className="text-yellow-500 hover:text-yellow-700 dark:hover:text-yellow-400 text-2xl sm:text-2xl font-bold px-2 py-1 sm:px-0 sm:py-0">&times;</button>
-          </div>
-          <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-2 sm:space-y-3 custom-scrollbar bg-white dark:bg-slate-900">
-            {messages.length === 0 ? (
-              <div className="text-gray-400 dark:text-gray-500 text-center text-sm sm:text-base">No messages yet.</div>
-            ) : (
-              messages.map((msg, idx) => (
-                <div
-                  key={msg._id || idx}
-                  className={`max-w-[90%] sm:max-w-[70%] px-3 sm:px-4 py-2 rounded-2xl text-sm sm:text-base shadow mb-1 sm:mb-2
-                    ${msg.from_id === userId
-                      ? 'bg-yellow-100 dark:bg-yellow-500/20 text-gray-900 dark:text-yellow-100 ml-auto rounded-br-none border border-yellow-200 dark:border-yellow-500/40'
-                      : 'bg-gray-100 dark:bg-slate-800 text-gray-900 dark:text-gray-200 mr-auto rounded-bl-none border border-gray-200 dark:border-slate-700'}`}
-                >
-                  {msg.content}
-                  <div className="text-xs text-right mt-1 opacity-60 dark:text-gray-400">
-                    {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : ''}
-                  </div>
-                </div>
-              ))
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-          <div className="p-3 sm:p-4 border-t border-yellow-500 bg-white dark:bg-gray-900 flex gap-1 sm:gap-2 rounded-none sm:rounded-b-2xl">
-            <input
-              type="text"
-              className="flex-1 px-3 sm:px-4 py-2 rounded-full border border-yellow-500 bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-yellow-400 placeholder-gray-400 dark:placeholder-gray-500 text-sm sm:text-base"
-              placeholder="Type a message..."
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') sendMessage(); }}
-              disabled={loading || (userRole === 'admin' && !adminTargetId)}
-            />
-            <button
-              onClick={sendMessage}
-              className="bg-yellow-400 hover:bg-yellow-500 text-black dark:text-slate-900 px-4 sm:px-6 py-2 rounded-full font-bold shadow-md transition disabled:opacity-50 text-sm sm:text-base"
-              disabled={loading || !input.trim() || (userRole === 'admin' && !adminTargetId)}
-            >
-              Send
-            </button>
-          </div>
-        </div>
       </div>
+
       <style>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 8px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #fde047;
-          border-radius: 4px;
-        }
-        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #facc15;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: #fffbea;
-        }
-        .dark .custom-scrollbar::-webkit-scrollbar-track {
-          background: #020617;
-        }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; }
       `}</style>
     </div>
   );
 };
 
-export default ChatDrawer; 
+export default ChatDrawer;
