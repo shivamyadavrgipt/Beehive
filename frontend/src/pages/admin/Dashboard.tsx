@@ -1,12 +1,12 @@
-import { useState, useEffect } from "react";
-import { useLocation } from "react-router-dom";
-import { apiUrl } from "../../utils/api";
-import { getToken } from "../../utils/auth";
+import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
+import { apiUrl } from '../../utils/api';
+import { getToken } from '../../utils/auth';
 import {
   PhotoIcon,
   ChartBarIcon,
   MicrophoneIcon,
-} from "@heroicons/react/24/outline";
+} from '@heroicons/react/24/outline';
 
 // Types for the dashboard data
 interface DashboardStats {
@@ -60,9 +60,7 @@ const StatCard = ({
 );
 
 const Dashboard = () => {
-  const [dashboardData, setDashboardData] = useState<DashboardData | null>(
-    null,
-  );
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -81,7 +79,7 @@ const Dashboard = () => {
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    const userParam = params.get("user");
+    const userParam = params.get('user');
     if (userParam) {
       setFilterUser(userParam);
     }
@@ -106,23 +104,22 @@ const Dashboard = () => {
         "Content-Type": "application/json",
       };
       if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
+        headers['Authorization'] = `Bearer ${token}`;
       }
-
+      // build query params to send filtering/sorting to server
       const qp = new URLSearchParams();
       qp.set("limit", String(limit));
       qp.set("page", String(page));
-      if (filterUser) qp.set("user", filterUser);
-      if (filterFromDate) qp.set("from", filterFromDate);
-      if (filterToDate) qp.set("to", filterToDate);
-      if (sortOption) qp.set("sort", sortOption);
+      if (filterUser) qp.set('user', filterUser);
+      if (filterFromDate) qp.set('from', filterFromDate);
+      if (filterToDate) qp.set('to', filterToDate);
+      if (sortOption) qp.set('sort', sortOption);
 
       const response = await fetch(
-        apiUrl(`/api/admin/dashboard?${qp.toString()}`),
-        {
-          method: "GET",
+        apiUrl(`/api/admin/dashboard?${qp.toString()}`),{
+          method: 'GET',
           headers,
-          credentials: "include",
+          credentials: 'include',
         },
       );
 
@@ -228,9 +225,7 @@ const Dashboard = () => {
         {/* Recent Activity */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md transition-colors duration-200">
           <div className="p-6">
-            <h2 className="text-xl font-semibold mb-4 dark:text-white">
-              Recent Activity
-            </h2>
+            <h2 className="text-xl font-semibold mb-4 dark:text-white">Recent Activity</h2>
 
             {/* filter and sort controls */}
             <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
@@ -301,7 +296,7 @@ const Dashboard = () => {
               </p>
             ) : (
               <div className="overflow-x-auto">
-              
+
                 <table className="min-w-full">
                   <thead>
                     <tr className="border-b border-gray-200 dark:border-gray-700">
@@ -322,15 +317,9 @@ const Dashboard = () => {
                         key={upload.id}
                         className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200"
                       >
-                        <td className="py-3 px-4 dark:text-gray-200">
-                          {upload.title}
-                        </td>
-                        <td className="py-3 px-4 dark:text-gray-200">
-                          {upload.user}
-                        </td>
-                        <td className="py-3 px-4 dark:text-gray-200">
-                          {new Date(upload.timestamp).toLocaleString()}
-                        </td>
+                        <td className="py-3 px-4 dark:text-gray-200">{upload.title}</td>
+                        <td className="py-3 px-4 dark:text-gray-200">{upload.user}</td>
+                        <td className="py-3 px-4 dark:text-gray-200">{new Date(upload.timestamp).toLocaleString()}</td>
                       </tr>
                     ))}
                   </tbody>
