@@ -19,6 +19,7 @@ import {
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EmptyGalleryIcon } from '../components/ui/EmptyGalleryIcon';
+import DeleteModal from '../components/DeleteModal';
 
 interface Upload {
   id: string;
@@ -143,6 +144,8 @@ const Gallery = () => {
   const [sortBy, setSortBy] = useState(searchParams.get('sort_by') || 'date');
   const [sortOrder, setSortOrder] = useState(searchParams.get('sort_order') || 'desc');
   const [showFilters, setShowFilters] = useState(false);
+  const [deleteCandidate, setDeleteCandidate] = useState<Upload | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   const [totalResults, setTotalResults] = useState(0);
   const [hasMore, setHasMore] = useState(false);
@@ -421,12 +424,13 @@ const Gallery = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this image?')) {
-      return;
-    }
+  const handleDeleteRequest = (image: Upload) => {
+    setDeleteCandidate(image);
+  };
 
+  const handleDelete = async (id: string) => {
     try {
+      setIsDeleting(true);
       // Optimistically update UI for immediate feedback
       const newImages = images.filter(img => img.id !== id);
       setImages(newImages);
@@ -459,7 +463,19 @@ const Gallery = () => {
       toast.error(error instanceof Error ? error.message : 'Failed to delete image');
       // On error, refetch to restore correct state
       fetchUploads(currentPage, false);
+    } finally {
+      setIsDeleting(false);
     }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteCandidate || isDeleting) {
+      return;
+    }
+
+    const targetId = deleteCandidate.id;
+    setDeleteCandidate(null);
+    await handleDelete(targetId);
   };
 
   const handleFileClick = (filename: string) => {
@@ -763,7 +779,7 @@ const Gallery = () => {
                               </span>
                             </motion.button>
                             <motion.button
-                              onClick={() => handleDelete(filteredImages[currentRollingIndex].id)}
+                              onClick={() => handleDeleteRequest(filteredImages[currentRollingIndex])}
                               className="p-2.5 rounded-full bg-white/20 hover:bg-white/30 text-white transition-all duration-200 group"
                               whileHover={{ scale: 1.1 }}
                               whileTap={{ scale: 0.95 }}
@@ -1164,7 +1180,7 @@ const Gallery = () => {
                               <PencilIcon className="h-4 w-4" />
                             </motion.button>
                             <motion.button
-                              onClick={() => handleDelete(image.id)}
+                              onClick={() => handleDeleteRequest(image)}
                               className="p-1.5 text-gray-600 hover:text-red-500 dark:text-gray-400 transition-colors duration-200"
                               title="Delete"
                               whileHover={{ scale: 1.1 }}
@@ -1357,6 +1373,15 @@ const Gallery = () => {
             image={editingImage}
             onClose={() => setEditingImage(null)}
             onSave={handleSave}
+          />
+        )}
+
+        {deleteCandidate && (
+          <DeleteModal
+            image={deleteCandidate}
+            isDeleting={isDeleting}
+            onClose={() => !isDeleting && setDeleteCandidate(null)}
+            onConfirm={handleConfirmDelete}
           />
         )}
 
