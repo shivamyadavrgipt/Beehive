@@ -258,8 +258,15 @@ def _get_paginated_images_by_user(user_id, page=1, page_size=12, filters=None):
         # Calculate skip for pagination
         skip = (page - 1) * page_size
         
-        # Build query
-        query = {'user_id': user_id}
+        # Build query using both string and ObjectId user ID forms for compatibility.
+        user_id_candidates = {user_id}
+        try:
+            user_id_candidates.add(ObjectId(user_id))
+        except Exception:
+            # Keep compatibility with legacy/non-ObjectId identifiers.
+            pass
+
+        query = {'user_id': {'$in': list(user_id_candidates)}}
         
         # Apply filters if provided
         if filters:
