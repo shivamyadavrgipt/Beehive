@@ -401,6 +401,7 @@ def upload_images():
                 file_header = file.stream.read(2048)
                 file.stream.seek(0)
                 file_mime_type = mime_detector.from_buffer(file_header)
+                file_mime_type = file_mime_type.split(";")[0].strip()
 
                 if file_mime_type not in ALLOWED_MIME_TYPES:
                     return jsonify(
@@ -425,7 +426,7 @@ def upload_images():
                         return audio_mime_or_error
 
                     audio_mime = audio_mime_or_error  # safe: decode returns mime on success
-                    audio_ext = audio_ext = AUDIO_MIME_TO_EXTENSION.get(audio_mime, ".wav")
+                    audio_ext = AUDIO_MIME_TO_EXTENSION.get(audio_mime, ".wav")
 
                     audio_filename = f"{safe_audio_basename}_{ObjectId()}{audio_ext}"
                     audio_path = os.path.join(
