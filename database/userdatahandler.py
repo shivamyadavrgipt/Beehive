@@ -262,7 +262,7 @@ def _get_paginated_images_by_user(user_id, page=1, page_size=12, filters=None):
         user_id_candidates = {user_id}
         try:
             user_id_candidates.add(ObjectId(user_id))
-        except Exception:
+        except (TypeError, ValueError):
             # Keep compatibility with legacy/non-ObjectId identifiers.
             pass
 
