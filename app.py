@@ -400,8 +400,7 @@ def upload_images():
                 file.stream.seek(0)
                 file_header = file.stream.read(2048)
                 file.stream.seek(0)
-                file_mime_type = mime_detector.from_buffer(file_header)
-                file_mime_type = file_mime_type.split(";")[0].strip()
+                file_mime_type = mime_detector.from_buffer(file_header).split(";")[0].strip()
 
                 if file_mime_type not in ALLOWED_MIME_TYPES:
                     return jsonify(
