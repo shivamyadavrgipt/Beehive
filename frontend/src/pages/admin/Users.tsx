@@ -47,7 +47,13 @@ const normalizeUser = (user: ApiUser): User => {
   };
 };
 
-const csvEscape = (value: string) => `"${value.replace(/"/g, '""')}"`;
+const csvEscape = (value: string) => {
+  let cellContent = value;
+  if (['=', '+', '-', '@'].includes(cellContent.charAt(0))) {
+    cellContent = `'${cellContent}`;
+  }
+  return `"${cellContent.replace(/"/g, '""')}"`;
+};
 
 const Users = () => {
   const [users, setUsers] = useState<User[]>([]);
