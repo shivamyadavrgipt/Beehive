@@ -160,7 +160,8 @@ const UserUploads = () => {
       const endpoint = type === 'audio' ? `/api/audio/${filename}` : `/api/files/${filename}`;
 
       const response = await fetch(apiUrl(endpoint), {
-        headers: { 'Authorization': `Bearer ${getToken()}` }
+        headers: { 'Authorization': `Bearer ${getToken()}` },
+        credentials: 'include'
       });
 
       if (!response.ok) throw new Error('Download failed');
