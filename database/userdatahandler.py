@@ -762,4 +762,4 @@ def get_user_analytics():
 
 # Get image record by its filename for ownership verification
 def get_image_by_filename(filename):
-    return beehive_image_collection.find_one({'filename': filename})
+    return beehive_image_collection.find_one({'filename': re.compile(f'^{re.escape(filename)}$', re.IGNORECASE)})
