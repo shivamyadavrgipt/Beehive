@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { saveToken } from "../../utils/auth";
 import { apiFetch } from "../../utils/apiFetch";
+import { requestOtp as requestOtpApi } from "./authApi";
 
 const SignUpPage = () => {
   const navigate = useNavigate();
@@ -22,10 +23,7 @@ const SignUpPage = () => {
     setError("");
 
     try {
-      await apiFetch("/api/auth/request-otp", {
-        method: "POST",
-        body: JSON.stringify({ email, purpose: "signup" }),
-      });
+      await requestOtpApi(email, "signup");
 
       // if apiFetch didn't throw → success
       setStep("otp");
