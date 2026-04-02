@@ -58,7 +58,7 @@ def get_user_by_id(user_id: str):
 
 
 # Save image to MongoDB
-def save_image(id, filename, title, description, time_created, audio_filename=None, sentiment=None):
+def save_image(id, filename, title, description, time_created, audio_filename=None, sentiment=None, thumbnail_filename=None):
     try:
         normalized_user_id = ObjectId(id)
     except (TypeError, ValueError):
@@ -72,10 +72,31 @@ def save_image(id, filename, title, description, time_created, audio_filename=No
         'description': description,
         'created_at': time_created,
         'audio_filename': audio_filename,
-        'sentiment': sentiment
+        'sentiment': sentiment,
+        'thumbnail_filename': thumbnail_filename
     }
     beehive_image_collection.insert_one(image)
     update_last_seen(id)
+
+def get_image_by_thumbnail(thumbnail_filename):
+    # Extract the filename
+    if thumbnail_filename.startswith("thumbnails/"):
+        thumbnail_filename = thumbnail_filename.replace("thumbnails/", "")
+
+    # Case insensitive matching for thumbnail filename
+    image = beehive_image_collection.find_one({
+        'thumbnail_filename': re.compile(f'^{re.escape(thumbnail_filename)}$', re.IGNORECASE)
+    })
+
+    if image:
+        return image
+
+    # map to the original pdf filename in case if thumbnail not found
+    base_name = re.sub(r'\.[^.]+$', '', thumbnail_filename)
+    return beehive_image_collection.find_one({
+        'filename': re.compile(f'^{re.escape(base_name)}\.pdf$', re.IGNORECASE)
+    })
+    
 # Count all images from MongoDB
 def total_images():
     return beehive_image_collection.count_documents({})

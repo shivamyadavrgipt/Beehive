@@ -49,10 +49,11 @@ export const ProtectedMedia = ({ filename, isPdf = false, className = '', alt = 
 
     const fetchMedia = async () => {
       try {
-        const response = await fetch(apiUrl(`/api/files/${filename}`), {
-          headers: {
-            'Authorization': `Bearer ${getToken()}`
-          },
+        const token = getToken();
+        const response = await fetch(encodeURI(apiUrl(`/api/files/${filename}`)), {
+          headers: token ? {
+            'Authorization': `Bearer ${token}`
+          } : {},
           credentials: 'include'
         });
 
@@ -102,8 +103,9 @@ export const ProtectedAudio = ({ filename, className = '', onEnded }: ProtectedA
 
     const fetchAudio = async () => {
       try {
-        const response = await fetch(apiUrl(`/api/audio/${filename}`), {
-          headers: { 'Authorization': `Bearer ${getToken()}` },
+        const token = getToken();
+        const response = await fetch(encodeURI(apiUrl(`/api/audio/${filename}`)), {
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {},
           credentials: 'include'
         });
 

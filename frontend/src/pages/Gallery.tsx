@@ -601,7 +601,8 @@ const handleDownload = async (filename: string, type: 'file' | 'audio' = 'file')
 
   const getThumbnailPath = (filename: string) => {
     if (filename.toLowerCase().endsWith('.pdf')) {
-      return `thumbnails/${filename.replace('.pdf', '.jpg')}`;
+      const baseName = filename.replace(/\.pdf$/i, '');
+      return `thumbnails/${baseName}.jpg`;
     }
     return filename;
   };

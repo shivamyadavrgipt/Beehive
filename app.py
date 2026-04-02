@@ -1,4 +1,5 @@
 from dotenv import load_dotenv
+from database import userdatahandler
 load_dotenv()
 
 import base64
@@ -449,6 +450,14 @@ def upload_images():
 
                 # Always safe to call now
                 time_created = datetime.datetime.now()
+                
+                # Generate pdf thumbnail
+                thumbnail_filename = None
+                if unique_filename.lower().endswith(".pdf"):
+                    name, _ = os.path.splitext(unique_filename)
+                    thumbnail_filename = f"{name}.jpg"
+                    generate_pdf_thumbnail(filepath, unique_filename)
+                
                 save_image(
                     user_id,
                     unique_filename,
@@ -457,14 +466,11 @@ def upload_images():
                     time_created,
                     audio_filename,
                     sentiment,
+                    thumbnail_filename,
                 )
                 save_notification(
                     user_id, username, unique_filename, title, time_created, sentiment
                 )
-
-                # Generate PDF thumbnail if applicable
-                if unique_filename.lower().endswith(".pdf"):
-                    generate_pdf_thumbnail(filepath, unique_filename)
 
         return jsonify({"message": "Upload successful"}), 200
 
@@ -691,15 +697,13 @@ def serve_audio(filename):
 def serve_protected_file(filename):
     # Serve files strictly to their owners or admins to prevent IDOR
     try:
-        db_filename = filename
         if filename.startswith("thumbnails/"):
-            db_filename = filename.replace("thumbnails/", "")
-            db_filename = db_filename.rsplit('.', 1)[0] + '.pdf'
-        
-        image = get_image_by_filename(db_filename)
+            image = userdatahandler.get_image_by_thumbnail(filename)
+        else:
+            image = userdatahandler.get_image_by_filename(filename)
         
         if not image:
-            return jsonify({"error": "File not found or unassociated"}), 404
+            return jsonify({"error": "File not found"}), 404
 
         current_user_id = request.current_user.get("id")
         current_user_role = request.current_user.get("role", "user")
