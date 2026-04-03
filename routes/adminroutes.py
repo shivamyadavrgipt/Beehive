@@ -138,6 +138,7 @@ def list_users():
                 "id": str(u.get("_id")),
                 "user_id": str(u.get("_id")),
                 "name": u.get("username") or u.get("email") or "Unknown User",
+                "email": u.get("email") or "",
                 "role": u.get("role", "user"),
                 "lastActive": u.get("last_active") or u.get("last_seen") or None,
                 "status": u.get("status", "active"),

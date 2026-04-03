@@ -187,17 +187,33 @@ def _parse_iso_date(date_string, field_name):
         raise ValueError(f"Invalid '{field_name}' date format: {date_string}. Expected ISO format.")
 
 
+def _build_user_id_query(user_id):
+    """
+    Build a MongoDB query that supports both string and ObjectId user IDs.
+    
+    This helper ensures compatibility with legacy string-based user IDs while
+    also supporting ObjectId formatted IDs, providing flexibility across the codebase.
+    
+    Args:
+        user_id: User ID (can be string or ObjectId)
+    
+    Returns:
+        dict: MongoDB query dictionary with '$in' operator for flexible user_id matching
+    """
+    user_id_candidates = {user_id}
+    try:
+        user_id_candidates.add(ObjectId(user_id))
+    except (TypeError, ValueError):
+        # Keep compatibility with legacy/non-ObjectId identifiers.
+        pass
+    
+    return {'user_id': {'$in': list(user_id_candidates)}}
+
+
 def search_and_filter_images(user_id, search_query=None, sentiment=None, from_date=None, to_date=None, 
                              sort_by='date', sort_order='desc', limit=12, offset=0):
     try:
-        user_id_candidates = {user_id}
-        try:
-            user_id_candidates.add(ObjectId(user_id))
-        except (TypeError, ValueError):
-            # This can happen with legacy string-based user IDs
-            pass
-
-        query = {'user_id': {'$in': list(user_id_candidates)}}
+        query = _build_user_id_query(user_id)
         update_last_seen(user_id)
         if search_query and search_query.strip():
             query['$text'] = {'$search': search_query.strip()}
@@ -293,8 +309,8 @@ def _get_paginated_images_by_user(user_id, page=1, page_size=12, filters=None):
         # Calculate skip for pagination
         skip = (page - 1) * page_size
         
-        # Build query
-        query = {'user_id': user_id}
+        # Build query using both string and ObjectId user ID forms for compatibility.
+        query = _build_user_id_query(user_id)
         
         # Apply filters if provided
         if filters:

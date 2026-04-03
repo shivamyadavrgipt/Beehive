@@ -18,7 +18,11 @@ from utils.logger import logger as app_logger
 
 import fitz
 import google.generativeai as genai
-import magic
+try:
+    import magic
+except ImportError:
+    magic = None
+    app_logger.warning("python-magic is not installed; MIME detection is unavailable until dependency is installed.")
 from bson import ObjectId
 from bson.errors import InvalidId
 from flask import (
@@ -51,6 +55,7 @@ from database.userdatahandler import (
     update_image,
     get_image_by_filename
 )
+from utils import error_response
 
 from utils.jwt_auth import require_auth,require_admin_role 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
@@ -372,6 +377,8 @@ def upload_images():
         if MAGIC is not None:
             mime_detector = MAGIC
         else:
+            if magic is None:
+                return error_response("Server MIME detection unavailable; contact administrator.", 500)
             global _FALLBACK_MAGIC
             if _FALLBACK_MAGIC is None:
                 try:
@@ -381,7 +388,7 @@ def upload_images():
                         "MIME detection unavailable: libmagic missing or misconfigured. Install system libmagic and python-magic. Error: %s",
                         e,
                     )
-                    return jsonify({"error": "Server MIME detection unavailable; contact administrator."}), 500
+                    return error_response("Server MIME detection unavailable; contact administrator.", 500)
             mime_detector = _FALLBACK_MAGIC
 
         for file in files:
@@ -866,9 +873,7 @@ def get_admin_notifications():
             page = int(request.args.get("page", 1))
             per_page = int(request.args.get("limit", 5))
         except ValueError:
-            return jsonify(
-                {"error": "Invalid 'page' or 'limit' parameter. Must be an integer."}
-            ), 400
+            return error_response("Invalid 'page' or 'limit' parameter. Must be an integer.", 400)
         skip = (page - 1) * per_page
 
         # Count unseen notifications
@@ -892,7 +897,7 @@ def get_admin_notifications():
 
     except Exception as e:
         logging.error(f"Error fetching admin notifications: {str(e)}")
-        return jsonify({"error": "Failed to fetch notifications. Please try again."}), 500
+        return error_response("Failed to fetch notifications. Please try again.", 500)
 
 
 @app.route("/api/admin/notifications/mark_seen", methods=["POST"])
@@ -908,7 +913,7 @@ def mark_selected_notifications_seen():
         try:
             object_ids = [ObjectId(_id) for _id in ids]
         except InvalidId:
-            return jsonify({"error": "Invalid ID format"}), 400
+            return error_response("Invalid ID format", 400)
 
         # Mark only these notifications seen
         notification_collection.update_many(
@@ -919,7 +924,7 @@ def mark_selected_notifications_seen():
 
     except Exception as e:
         logging.error(f"Error marking notifications as seen: {str(e)}")
-        return jsonify({"error": "Failed to update notifications. Please try again."}), 500
+        return error_response("Failed to update notifications. Please try again.", 500)
 
 
 @app.route("/api/chat/send", methods=["POST"])
@@ -1009,7 +1014,7 @@ def health_check():
         return jsonify({
             "status": "unhealthy",
             "error": "Service Unavailable",
-            "timestamp": current_time  # Uses the same variable
+            "timestamp": current_time
         }), 503
     
 

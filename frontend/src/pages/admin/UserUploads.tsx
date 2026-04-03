@@ -67,22 +67,23 @@ const UserUploads = () => {
       if (data.error) {
         throw new Error(data.error);
       }
-
-      const sortedImages: Upload[] = data.images.sort((a: Upload, b: Upload) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
-
+      
+      const sortedImages: Upload[] = Array.isArray(data.images) ? data.images.sort((a: Upload, b: Upload) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) : [];
+      
       if (append) {
         setUploads(prev => [...prev, ...sortedImages]);
       } else {
         setUploads(sortedImages);
       }
 
-      setTotalPages(data.totalPages || 1);
+      const normalizedTotalPages = typeof data.totalPages === 'number' ? data.totalPages : 0;
+      setTotalPages(normalizedTotalPages > 0 ? normalizedTotalPages : 1);
       setTotalCount(data.total_count || 0);
       setCurrentPage(data.page || 1);
+      
+      console.log(`Loaded page ${page}/${normalizedTotalPages}, ${sortedImages.length} uploads`);
 
-      console.log(`Loaded page ${page}/${data.totalPages}, ${sortedImages.length} uploads`);
     } catch (error) {
       console.error('Error fetching uploads:', error);
       if (page === 1) {

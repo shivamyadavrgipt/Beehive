@@ -16,10 +16,14 @@ import {
   MagnifyingGlassIcon,
   FunnelIcon,
 } from '@heroicons/react/24/outline';
-import toast from 'react-hot-toast';
+import toast, { type Toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EmptyGalleryIcon } from '../components/ui/EmptyGalleryIcon';
+
 import { ProtectedMedia } from '../components/ProtectedRoutes';
+import DeleteModal from '../components/DeleteModal';
+
+const DELETE_UNDO_WINDOW_MS = 5000;
 
 interface Upload {
   id: string;
@@ -35,6 +39,14 @@ interface EditModalProps {
   image: Upload;
   onClose: () => void;
   onSave: (id: string, title: string, description: string, sentiment: string) => void;
+}
+
+interface PendingDeletion {
+  image: Upload;
+  originalIndex: number;
+  pageToRefresh: number;
+  timeoutId: ReturnType<typeof setTimeout>;
+  toastId: string;
 }
 
 const EditModal = ({ image, onClose, onSave }: EditModalProps) => {
@@ -145,11 +157,14 @@ const Gallery = () => {
   const [sortOrder, setSortOrder] = useState(searchParams.get('sort_order') || 'desc');
   const [showFilters, setShowFilters] = useState(false);
 
+  const [deleteCandidate, setDeleteCandidate] = useState<Upload | null>(null);
+
   const [totalResults, setTotalResults] = useState(0);
   const [hasMore, setHasMore] = useState(false);
 
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const pendingDeletionRef = useRef<Map<string, PendingDeletion>>(new Map());
 
   // Auto-switch from relevance to date when search query is cleared
   useEffect(() => {
@@ -305,9 +320,9 @@ const Gallery = () => {
       setTotalPages(Math.ceil((data.total || 0) / pageSize));
       setTotalCount(data.total || 0);
       setCurrentPage(page);
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Ignore abort errors
-      if (error.name === 'AbortError') {
+      if (error instanceof Error && error.name === 'AbortError') {
         return;
       }
       console.error('Error fetching uploads:', error);
@@ -422,45 +437,132 @@ const Gallery = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this image?')) {
+  const handleDeleteRequest = (image: Upload) => {
+    setDeleteCandidate(image);
+  };
+
+  const restoreDeletedImage = useCallback((image: Upload, originalIndex: number) => {
+    setImages((prev) => {
+      if (prev.some((item) => item.id === image.id)) {
+        return prev;
+      }
+      const next = [...prev];
+      const safeIndex = Math.min(Math.max(originalIndex, 0), next.length);
+      next.splice(safeIndex, 0, image);
+      return next;
+    });
+    setTotalCount((prevCount) => prevCount + 1);
+    setTotalResults((prevTotal) => prevTotal + 1);
+  }, []);
+
+  const finalizeDelete = useCallback(async (id: string) => {
+    const pending = pendingDeletionRef.current.get(id);
+    if (!pending) {
       return;
     }
 
     try {
-      // Optimistically update UI for immediate feedback
-      const newImages = images.filter(img => img.id !== id);
-      setImages(newImages);
-      setTotalCount(prevCount => prevCount - 1);
+      setIsDeleting(true);
 
-      // Perform the deletion
       const response = await authenticatedFetch(`/delete/${id}`, { method: 'DELETE' });
       if (!response.ok) {
         let errorMsg = 'Failed to delete image';
         try {
           const errorData = await response.json();
           errorMsg = errorData.error || errorMsg;
-        } catch (e) {
+        } catch {
           // Response was not JSON, stick with the default message.
         }
         throw new Error(errorMsg);
       }
-      // If the last item on a page (other than the first) was deleted, go to the previous page
-      if (newImages.length === 0 && currentPage > 1) {
-        fetchUploads(currentPage - 1, false);
-      } else {
-        // Refetch the current page to pull a new item from the next page if available
-        // and to ensure pagination metadata is correct
-        fetchUploads(currentPage, false);
+
+      pendingDeletionRef.current.delete(id);
+      toast.dismiss(pending.toastId);
+      if (currentPage === pending.pageToRefresh) {
+        fetchUploads(pending.pageToRefresh, false);
       }
 
       toast.success('Image deleted successfully!');
     } catch (error) {
+      pendingDeletionRef.current.delete(id);
       console.error('Error deleting image:', error);
+      restoreDeletedImage(pending.image, pending.originalIndex);
+      toast.dismiss(pending.toastId);
       toast.error(error instanceof Error ? error.message : 'Failed to delete image');
       // On error, refetch to restore correct state
-      fetchUploads(currentPage, false);
+      fetchUploads(pending.pageToRefresh, false);
+    } finally {
+      setIsDeleting(false);
     }
+  }, [authenticatedFetch, fetchUploads, restoreDeletedImage]);
+
+  const handleUndoDelete = useCallback((id: string) => {
+    const pending = pendingDeletionRef.current.get(id);
+    if (!pending) {
+      return;
+    }
+
+    clearTimeout(pending.timeoutId);
+    pendingDeletionRef.current.delete(id);
+    toast.dismiss(pending.toastId);
+    restoreDeletedImage(pending.image, pending.originalIndex);
+    toast.success('Deletion undone');
+  }, [restoreDeletedImage]);
+
+  const handleConfirmDelete = async () => {
+    if (!deleteCandidate) {
+      return;
+    }
+      return;
+    }
+
+    const imageToDelete = deleteCandidate;
+    const targetId = imageToDelete.id;
+    const originalIndex = images.findIndex((img) => img.id === targetId);
+    const remainingImagesCount = images.length - 1;
+    const pageToRefresh = remainingImagesCount === 0 && currentPage > 1 ? currentPage - 1 : currentPage;
+
+    setDeleteCandidate(null);
+    setImages((prev) => prev.filter((img) => img.id !== targetId));
+    setTotalCount((prevCount) => Math.max(0, prevCount - 1));
+    setTotalResults((prevTotal) => Math.max(0, prevTotal - 1));
+
+    const toastId = toast.custom(
+      (t: Toast) => (
+        <div
+          className={`w-[calc(100vw-2rem)] max-w-xs sm:max-w-md bg-red-50 dark:bg-red-950/90 border border-red-300 dark:border-red-700 shadow-2xl rounded-xl pointer-events-auto px-4 py-3 flex items-center justify-between gap-3 ${
+            t.visible ? 'animate-enter' : 'animate-leave'
+          }`}
+        >
+          <p className="text-sm font-medium text-red-900 dark:text-red-100">
+            Image deleted.  
+          </p>
+          <button
+            type="button"
+            onClick={() => handleUndoDelete(targetId)}
+            className="inline-flex items-center rounded-md bg-red-700 hover:bg-red-800 dark:bg-red-500 dark:hover:bg-red-400 px-3 py-1.5 text-sm font-semibold text-white transition-colors duration-200"
+          >
+            Undo
+          </button>
+        </div>
+      ),
+      {
+        duration: DELETE_UNDO_WINDOW_MS,
+        position: 'top-center',
+      }
+    );
+
+    const timeoutId = setTimeout(() => {
+      void finalizeDelete(targetId);
+    }, DELETE_UNDO_WINDOW_MS);
+
+    pendingDeletionRef.current.set(targetId, {
+      image: imageToDelete,
+      originalIndex,
+      pageToRefresh,
+      timeoutId,
+      toastId,
+    });
   };
 
   const handleFileClick = (filename: string) => {
@@ -569,8 +671,8 @@ const handleDownload = async (filename: string, type: 'file' | 'audio' = 'file')
           }
         });
       }
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === 'AbortError') {
         return;
       }
       console.error('Error fetching audio:', error);
@@ -584,6 +686,17 @@ const handleDownload = async (filename: string, type: 'file' | 'audio' = 'file')
       cleanupAudio();
     };
   }, [cleanupAudio]);
+
+  useEffect(() => {
+    const pendingDeletions = pendingDeletionRef.current;
+    return () => {
+      pendingDeletions.forEach((pending) => {
+        clearTimeout(pending.timeoutId);
+        toast.dismiss(pending.toastId);
+      });
+      pendingDeletions.clear();
+    };
+  }, []);
 
   const renderFilePreview = () => {
     if (!selectedFile) return null;
@@ -773,7 +886,7 @@ const handleDownload = async (filename: string, type: 'file' | 'audio' = 'file')
                               </span>
                             </motion.button>
                             <motion.button
-                              onClick={() => handleDelete(filteredImages[currentRollingIndex].id)}
+                              onClick={() => handleDeleteRequest(filteredImages[currentRollingIndex])}
                               className="p-2.5 rounded-full bg-white/20 hover:bg-white/30 text-white transition-all duration-200 group"
                               whileHover={{ scale: 1.1 }}
                               whileTap={{ scale: 0.95 }}
@@ -1171,7 +1284,7 @@ const handleDownload = async (filename: string, type: 'file' | 'audio' = 'file')
                               <PencilIcon className="h-4 w-4" />
                             </motion.button>
                             <motion.button
-                              onClick={() => handleDelete(image.id)}
+                              onClick={() => handleDeleteRequest(image)}
                               className="p-1.5 text-gray-600 hover:text-red-500 dark:text-gray-400 transition-colors duration-200"
                               title="Delete"
                               whileHover={{ scale: 1.1 }}
@@ -1358,6 +1471,15 @@ const handleDownload = async (filename: string, type: 'file' | 'audio' = 'file')
             image={editingImage}
             onClose={() => setEditingImage(null)}
             onSave={handleSave}
+          />
+        )}
+
+        {deleteCandidate && (
+          <DeleteModal
+            image={deleteCandidate}
+            isDeleting={isDeleting}
+            onClose={() => setDeleteCandidate(null)}
+            onConfirm={handleConfirmDelete}
           />
         )}
 
