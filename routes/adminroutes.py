@@ -9,6 +9,7 @@ from database.userdatahandler import (
     get_upload_analytics,
     get_user_analytics,
     unlock_account,
+    get_lock_status,
 )
 from datetime import timezone
 from utils.pagination import parse_pagination_params
