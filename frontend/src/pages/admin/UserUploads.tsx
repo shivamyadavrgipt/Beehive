@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getToken } from '../../utils/auth';
 import { motion } from 'framer-motion';
@@ -6,6 +6,7 @@ import Pagination from '../../components/ui/Pagination';
 import { ArrowLeftIcon, XMarkIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
 import { apiUrl } from '../../utils/api';
+import { ProtectedMedia, ProtectedAudio } from '../../components/ProtectedRoutes';
 
 interface Upload {
   id: string;
@@ -27,9 +28,8 @@ const UserUploads = () => {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [currentAudio, setCurrentAudio] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  
-  
+
+
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
@@ -39,15 +39,15 @@ const UserUploads = () => {
   // Fetch uploads with pagination
   const fetchUploads = useCallback(async (page: number = 1, append: boolean = false) => {
     if (!userId) return;
-    
+
     try {
       if (page === 1) {
         setLoading(true);
       } else {
         setLoadingMore(true);
       }
-      
-      
+
+
       const response = await fetch(apiUrl(`/api/admin/user_uploads/${userId}?page=${page}&page_size=${pageSize}`), {
         method: 'GET',
         headers: {
@@ -57,31 +57,33 @@ const UserUploads = () => {
         credentials: 'include',
         mode: 'cors'
       });
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const data = await response.json();
       console.log(data);
       if (data.error) {
         throw new Error(data.error);
       }
       
-      const sortedImages: Upload[] = Array.isArray(data.images) ? data.images : [];
+      const sortedImages: Upload[] = Array.isArray(data.images) ? data.images.sort((a: Upload, b: Upload) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) : [];
       
       if (append) {
         setUploads(prev => [...prev, ...sortedImages]);
       } else {
         setUploads(sortedImages);
       }
-      
+
       const normalizedTotalPages = typeof data.totalPages === 'number' ? data.totalPages : 0;
       setTotalPages(normalizedTotalPages > 0 ? normalizedTotalPages : 1);
       setTotalCount(data.total_count || 0);
       setCurrentPage(data.page || 1);
       
       console.log(`Loaded page ${page}/${normalizedTotalPages}, ${sortedImages.length} uploads`);
+
     } catch (error) {
       console.error('Error fetching uploads:', error);
       if (page === 1) {
@@ -114,18 +116,8 @@ const UserUploads = () => {
 
   const handleAudioClick = (audioFilename: string) => {
     if (currentAudio === audioFilename) {
-      // If clicking the same audio, stop it
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
-      }
       setCurrentAudio(null);
     } else {
-      // If clicking a different audio, stop current and play new
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
-      }
       setCurrentAudio(audioFilename);
     }
   };
@@ -141,32 +133,45 @@ const UserUploads = () => {
 
   const renderFilePreview = () => {
     if (!selectedFile) return null;
-
-    const fileUrl = apiUrl(`/static/uploads/${selectedFile}`);
-
-    if (isPDF(selectedFile)) {
-      return (
-        <iframe
-          src={fileUrl}
-          className="w-full h-[80vh]"
-          title="PDF Preview"
-        />
-      );
-    }
+    const isPdfFile = isPDF(selectedFile);
 
     return (
-      <img
-        src={fileUrl}
-        alt="Uploaded file"
-        className="max-w-full h-auto mx-auto"
+      <ProtectedMedia
+        filename={selectedFile}
+        isPdf={isPdfFile}
+        className={isPdfFile ? "w-full h-[80vh]" : "max-w-full h-auto mx-auto"}
       />
     );
   };
 
-  const handleDownload = (filename: string, type: 'file' | 'audio') => {
-    const url = apiUrl(`/static/uploads/${filename}`);
-    window.open(url, '_blank');
-    toast.success(`${type === 'file' ? 'File' : 'Audio'} opened in new window!`);
+  const handleDownload = async (filename: string, type: 'file' | 'audio' = 'file') => {
+    try {
+      // Audio uses /api/audio/, images use /api/files/
+      const endpoint = type === 'audio' ? `/api/audio/${filename}` : `/api/files/${filename}`;
+
+      const response = await fetch(apiUrl(endpoint), {
+        headers: { 'Authorization': `Bearer ${getToken()}` },
+        credentials: 'include'
+      });
+
+      if (!response.ok) throw new Error('Download failed');
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = filename; // download instead of opening in tab
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast.success(`${type === 'file' ? 'File' : 'Audio'} downloaded successfully!`);
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.error('Failed to download file.');
+    }
   };
 
   return (
@@ -276,25 +281,20 @@ const UserUploads = () => {
                           <div className="flex flex-col space-y-2">
                             <button
                               onClick={() => handleAudioClick(upload.audio_filename!)}
-                              className={`inline-flex items-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors duration-200 ${
-                                currentAudio === upload.audio_filename 
-                                  ? 'bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900 dark:text-red-100 dark:hover:bg-red-800' 
+                              className={`inline-flex items-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors duration-200 ${currentAudio === upload.audio_filename
+                                  ? 'bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900 dark:text-red-100 dark:hover:bg-red-800'
                                   : 'bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-100 dark:hover:bg-blue-800'
-                              }`}
+                                }`}
                             >
                               {currentAudio === upload.audio_filename ? 'Hide Player' : 'Show Player'}
                             </button>
                             {currentAudio === upload.audio_filename && (
                               <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-3 border border-gray-200 dark:border-gray-700">
-                                <audio
-                                  ref={audioRef}
-                                  controls
+                                <ProtectedAudio
+                                  filename={upload.audio_filename}
                                   className="w-full [&::-webkit-media-controls-panel]:bg-gray-100 dark:[&::-webkit-media-controls-panel]:bg-gray-800 [&::-webkit-media-controls-current-time-display]:text-gray-700 dark:[&::-webkit-media-controls-current-time-display]:text-gray-300 [&::-webkit-media-controls-time-remaining-display]:text-gray-700 dark:[&::-webkit-media-controls-time-remaining-display]:text-gray-300 [&::-webkit-media-controls-timeline]:bg-gray-300 dark:[&::-webkit-media-controls-timeline]:bg-gray-600 [&::-webkit-media-controls-volume-slider]:bg-gray-300 dark:[&::-webkit-media-controls-volume-slider]:bg-gray-600"
-                                  src={apiUrl(`/static/uploads/${upload.audio_filename}`)}
                                   onEnded={() => setCurrentAudio(null)}
-                                >
-                                  Your browser does not support the audio element.
-                                </audio>
+                                />
                               </div>
                             )}
                           </div>
@@ -333,11 +333,11 @@ const UserUploads = () => {
             )}
           </div>
 
-            <div className="p-4">
-              <Pagination page={currentPage} totalPages={totalPages} onPageChange={handlePageChange} />
-            </div>
-          
-          
+          <div className="p-4">
+            <Pagination page={currentPage} totalPages={totalPages} onPageChange={handlePageChange} />
+          </div>
+
+
 
           {/* Loading indicator */}
           {loadingMore && (

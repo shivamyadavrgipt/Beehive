@@ -6,10 +6,10 @@
 ### 2) User Upload Media
 1. User submits form to `POST /api/user/upload` with files, title, description, optional `audioData` and `sentiment`.
 2. Backend validates inputs and allowed extensions.
-3. Files saved to `static/uploads/`; optional audio decoded from base64 and saved.
+3. Files saved to `uploads/`; optional audio decoded from base64 and saved.
 4. MongoDB `images` document inserted.
 5. Admin `notifications` document inserted.
-6. If PDF, generate thumbnail to `static/uploads/thumbnails/`.
+6. If PDF, generate thumbnail to `uploads/thumbnails/`.
 
 ### 3) Edit Media
 1. Owner hits `PATCH /edit/{image_id}` with new `title`, `description`, optional `sentiment`.
@@ -17,7 +17,7 @@
 
 ### 4) Delete Media
 1. Owner hits `DELETE /delete/{image_id}`.
-2. Backend deletes file from `static/uploads/`, removes audio and PDF thumbnail if exist.
+2. Backend deletes file from `uploads/`, removes audio and PDF thumbnail if exist.
 3. Deletes MongoDB image document.
 
 ### 5) View User Uploads

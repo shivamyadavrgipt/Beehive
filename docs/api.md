@@ -28,8 +28,8 @@ Base URL (dev): `http://127.0.0.1:5000`
   - 500: `{ error: "Error uploading file: ..." }`
 
 Side effects:
-- Saves files to `static/uploads/`.
-- Generates PDF thumbnail for `.pdf` as `.jpg` in `static/uploads/thumbnails/`.
+- Saves files to `uploads/`.
+- Generates PDF thumbnail for `.pdf` as `.jpg` in `uploads/thumbnails/`.
 - Inserts `image` record and admin `notification` in MongoDB.
 
 ---
@@ -117,7 +117,7 @@ Side effects:
 ### Static Media
 
 #### GET `/audio/{filename}`
-- Serves audio file from `static/uploads/`.
+- Serves audio file from `uploads/`.
 
 ---
 

@@ -13,7 +13,7 @@ This project aims to analyze behavioral health and complement healthcare practic
 - **User Authentication**: Google OAuth2
 - **Local Authentication**: JWT-based auth with optional Google OAuth for admin
 - **Database**: MongoDB
-- **Storage**: Local filesystem for media uploads in `static/uploads/` with PDF thumbnails in `static/uploads/thumbnails/`
+- **Storage**: Local filesystem for media uploads in `uploads/` with PDF thumbnails in `uploads/thumbnails/`
   
 ## Workflow
 ```mermaid

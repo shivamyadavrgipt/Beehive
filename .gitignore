@@ -164,7 +164,7 @@ dmypy.json
 cython_debug/
 
 # Ignore the uploads folder where user files are stored
-static/uploads/
+uploads/
 
 client_secret.json
 user_info.json
