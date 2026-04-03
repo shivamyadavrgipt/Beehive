@@ -50,7 +50,7 @@ export const ProtectedMedia = ({ filename, isPdf = false, className = '', alt = 
     const fetchMedia = async () => {
       try {
         const token = getToken();
-        const response = await fetch(apiUrl(`/api/files/${encodeURIComponent(filename)}`), {
+        const response = await fetch(apiUrl(`/api/files/${filename}`), {
           headers: token ? {
             'Authorization': `Bearer ${token}`
           } : {},
