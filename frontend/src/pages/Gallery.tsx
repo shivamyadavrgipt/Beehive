@@ -155,7 +155,7 @@ const Gallery = () => {
   const [sortOrder, setSortOrder] = useState(searchParams.get('sort_order') || 'desc');
   const [showFilters, setShowFilters] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState<Upload | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteCandidate, setDeleteCandidate] = useState<Upload | null>(null);
   
   const [totalResults, setTotalResults] = useState(0);
   const [hasMore, setHasMore] = useState(false);
