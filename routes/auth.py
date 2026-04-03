@@ -204,6 +204,7 @@ def complete_signup():
         "created_at": now_utc,
         "last_active": now_utc
     })
+    db.email_otps.delete_many({"email": email})
 
     token = create_access_token(
         user_id=str(result.inserted_id),
