@@ -68,10 +68,7 @@ const UserUploads = () => {
         throw new Error(data.error);
       }
       
-      const images: Upload[] = Array.isArray(data.images) ? data.images : [];
-      const sortedImages: Upload[] = images.sort((a: Upload, b: Upload) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
+      const sortedImages: Upload[] = Array.isArray(data.images) ? data.images : [];
       
       if (append) {
         setUploads(prev => [...prev, ...sortedImages]);
