@@ -1474,7 +1474,7 @@ const Gallery = () => {
 
         {deleteCandidate && (
           <DeleteModal
-            image={{ title: deleteCandidate.title, filename: deleteCandidate.filename }}
+            image={deleteCandidate}
             isDeleting={isDeleting}
             onClose={() => setDeleteCandidate(null)}
             onConfirm={handleConfirmDelete}
