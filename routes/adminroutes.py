@@ -64,15 +64,15 @@ def get_dashboard_data():
         from_date_str = request.args.get("from")
         if from_date_str:
             try:
-                from_date = datetime.fromisoformat(from_date_str)
+                from_date = datetime.fromisoformat(from_date_str).replace(tzinfo=timezone.utc)
             except ValueError:
                 return jsonify({"error": f"Invalid 'from' date format: {from_date_str}. Expected YYYY-MM-DD."}), 400
         end_date_str = request.args.get("to")
         if end_date_str:
             try:
-                end_date = datetime.fromisoformat(end_date_str).replace(hour=23, minute=59, second=59)
+                end_date = datetime.fromisoformat(end_date_str).replace(hour=23, minute=59, second=59, tzinfo=timezone.utc)
             except ValueError:
-                return jsonify({"error": f"Invalid 'to' date format: {end_date_str}. Expected YYYY-MM-DD."}), 400       
+                return jsonify({"error": f"Invalid 'to' date format: {end_date_str}. Expected YYYY-MM-DD."}), 400
         sort_method = request.args.get("sort")
         VALID_SORT_METHODS = ['date_desc', 'date_asc', 'user_desc', 'user_asc']
         if sort_method and sort_method not in VALID_SORT_METHODS:
