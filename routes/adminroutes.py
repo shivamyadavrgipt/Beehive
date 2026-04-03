@@ -2,7 +2,7 @@ import re
 from utils.validation import sanitize_api_query
 from flask import Blueprint, request, jsonify
 from utils.jwt_auth import require_admin_role
-from datetime import datetime
+from datetime import datetime, timezone
 from database.userdatahandler import (
     _get_paginated_images_by_user,
     get_recent_uploads,
