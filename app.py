@@ -22,7 +22,7 @@ try:
     import magic
 except ImportError:
     magic = None
-    app.logger.warning("python-magic is not installed; MIME detection is unavailable until dependency is installed.")
+    logging.warning("python-magic is not installed; MIME detection is unavailable until dependency is installed.")
 from bson import ObjectId
 from bson.errors import InvalidId
 from flask import (
