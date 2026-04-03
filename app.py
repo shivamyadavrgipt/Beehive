@@ -892,7 +892,7 @@ def mark_selected_notifications_seen():
 
     except Exception as e:
         logging.error(f"Error marking notifications as seen: {str(e)}")
-        return error_response("Failed to update notifications. Please try again."), 500
+        return error_response("Failed to update notifications. Please try again.", 500)
 
 
 @app.route("/api/chat/send", methods=["POST"])
