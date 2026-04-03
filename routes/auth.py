@@ -1,4 +1,3 @@
-import re
 from flask import Blueprint, request, jsonify, current_app
 from datetime import datetime, timedelta, timezone
 import secrets
@@ -117,8 +116,6 @@ def request_otp():
         current_app.logger.exception("Failed to send OTP email: %s", e)
         return jsonify({"message": "OTP stored (failed to send email)"}), 200
 
-
-from datetime import datetime, timezone
 
 @auth_bp.route("/verify-otp", methods=["POST"], strict_slashes=False)
 def verify_otp():
