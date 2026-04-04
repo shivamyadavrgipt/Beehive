@@ -570,45 +570,28 @@ def get_upload_stats():
 def get_recent_uploads(page=1, limit=10, username_filter=None, from_date=None, end_date=None, sort_method="date_desc"):
     try:
         offset = max(0, (page - 1)) * limit
-        pipeline = []
-        match = {}
-        created_at = {}
+        match_query = {}
+        
+        # Handle date range filtering
+        created_at_query = {}
         if from_date:
-            created_at["$gte"] = from_date
+            created_at_query["$gte"] = from_date
         if end_date:
-            created_at["$lte"] = end_date
+            created_at_query["$lte"] = end_date
+        if created_at_query:
+            match_query["created_at"] = created_at_query
 
-        if created_at:
-            match["created_at"] = created_at
-        if match:
-            pipeline.append({"$match": match})
-        pipeline.extend([
-            {
-                "$set": {
-                    "user_id_obj": {
-                        "$convert": {
-                            "input": "$user_id",
-                            "to": "objectId",
-                            "onError": None,
-                            "onNull": None
-                        }
-                    }
-                }
-            },
-            {
-                "$lookup": {
-                    "from": beehive_user_collection.name,
-                    "localField": "user_id_obj",
-                    "foreignField": "_id",
-                    "as": "user_mapping"
-                }
-            },
-            {"$set": {"user_mapping": {"$first": "$user_mapping"}}},
-            {"$set": {"username": "$user_mapping.username"}},
-        ])
+        # Handle username filter by finding IDs first (uses users collection indexes)
         if username_filter:
-            pipeline.append({"$match": {"username": {"$regex": re.escape(username_filter), "$options": "i"}}})
+            matching_users = beehive_user_collection.find(
+                {"username": {"$regex": re.escape(username_filter), "$options": "i"}},
+                {"_id": 1}
+            )
+            user_ids = [u["_id"] for u in matching_users]
+            # Match both string and ObjectId user_id formats for compatibility
+            match_query["user_id"] = {"$in": user_ids + [str(uid) for uid in user_ids]}
 
+        # Determine sort criteria
         sort_criteria = {"created_at": -1}
         if sort_method == "date_asc":
             sort_criteria = {"created_at": 1}
@@ -616,18 +599,86 @@ def get_recent_uploads(page=1, limit=10, username_filter=None, from_date=None, e
             sort_criteria = {"username": 1, "created_at": -1}
         elif sort_method == "user_desc":
             sort_criteria = {"username": -1, "created_at": -1}
-        # Perform count before sorting for better performance.
-        count_pipeline = pipeline + [{"$count": "total"}]
-        count_result = list(beehive_image_collection.aggregate(count_pipeline))
-        total_count = count_result[0].get("total", 0) if count_result else 0
 
-        pipeline.append({"$sort": sort_criteria})
-        pipeline.append({"$skip": offset})
-        pipeline.append({"$limit": limit})
+        # Build optimized data pipeline
+        data_pipeline = []
+        
+        # If sorting by username, we must join BEFORE sorting
+        if sort_method in ["user_asc", "user_desc"]:
+            data_pipeline.extend([
+                {
+                    "$set": {
+                        "user_id_obj": {
+                            "$convert": {
+                                "input": "$user_id",
+                                "to": "objectId",
+                                "onError": None,
+                                "onNull": None
+                            }
+                        }
+                    }
+                },
+                {
+                    "$lookup": {
+                        "from": beehive_user_collection.name,
+                        "localField": "user_id_obj",
+                        "foreignField": "_id",
+                        "as": "user_mapping"
+                    }
+                },
+                {"$set": {"user_mapping": {"$first": "$user_mapping"}}},
+                {"$set": {"username": "$user_mapping.username"}},
+                {"$sort": sort_criteria},
+                {"$skip": offset},
+                {"$limit": limit}
+            ])
+        else:
+            # If sorting by date, we can paginate FIRST, then join only for the result set (much faster)
+            data_pipeline.extend([
+                {"$sort": sort_criteria},
+                {"$skip": offset},
+                {"$limit": limit},
+                {
+                    "$set": {
+                        "user_id_obj": {
+                            "$convert": {
+                                "input": "$user_id",
+                                "to": "objectId",
+                                "onError": None,
+                                "onNull": None
+                            }
+                        }
+                    }
+                },
+                {
+                    "$lookup": {
+                        "from": beehive_user_collection.name,
+                        "localField": "user_id_obj",
+                        "foreignField": "_id",
+                        "as": "user_mapping"
+                    }
+                },
+                {"$set": {"user_mapping": {"$first": "$user_mapping"}}},
+                {"$set": {"username": {"$ifNull": ["$user_mapping.username", "Unknown User"]}}},
+            ])
 
-        result = beehive_image_collection.aggregate(pipeline)
+        # Execute single aggregation with $facet for count + data
+        pipeline = [
+            {"$match": match_query},
+            {
+                "$facet": {
+                    "total": [{"$count": "count"}],
+                    "data": data_pipeline
+                }
+            }
+        ]
+
+        result = list(beehive_image_collection.aggregate(pipeline))[0]
+        total_count = result["total"][0]["count"] if result["total"] else 0
+        uploads = result["data"]
+
         uploads_list = []
-        for upload in result:
+        for upload in uploads:
             user_id = upload.get('user_id')
             user_name = upload.get('username') or "Unknown User"
             uploads_list.append({

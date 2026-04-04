@@ -59,7 +59,9 @@ def get_beehive_message_collection():
 def initialize_text_index():
     try:
         image_collection = get_beehive_image_collection()
+        user_collection = get_beehive_user_collection()
         existing_indexes = image_collection.index_information()
+        existing_user_indexes = user_collection.index_information()
         
         if 'title_text_description_text' not in existing_indexes:
             image_collection.create_index([
@@ -97,6 +99,14 @@ def initialize_text_index():
             if 'user_id_1_created_at_-1' not in existing_indexes:
                 image_collection.create_index([('user_id', 1), ('created_at', -1)], name='user_id_1_created_at_-1')
                 logger.info("Compound index created on user_id and created_at in image collection")
+
+            # Add user collection indexes
+            if 'username_1' not in existing_user_indexes:
+                user_collection.create_index([('username', 1)], name='username_1')
+                logger.info("Index created on username in user collection")
+            if 'email_1' not in existing_user_indexes:
+                user_collection.create_index([('email', 1)], name='email_1')
+                logger.info("Index created on email in user collection")
         except Exception as ie:
             logger.error(f"Error creating collection indexes: {ie}")
     except Exception as e:
