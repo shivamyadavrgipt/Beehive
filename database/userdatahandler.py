@@ -660,7 +660,7 @@ def get_lock_status(user_id_or_doc, now=None):
     )
     failed_attempts = user.get("failed_login_attempts", 0)
     if locked_until_aware and locked_until_aware > now:
-        remaining = int((locked_until_aware - now).total_seconds())
+        remaining = int((locked_until_aware - now).total_seconds() + 1)
         return {
             "is_locked": True,
             "remaining_seconds": remaining,
