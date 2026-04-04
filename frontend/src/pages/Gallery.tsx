@@ -575,8 +575,8 @@ const Gallery = () => {
 
 const handleDownload = async (filename: string, type: 'file' | 'audio' = 'file') => {
     try {
-      // Audio uses /api/audio/, images use /api/files/
-      const endpoint = type === 'audio' ? `/api/audio/${filename}` : `/api/files/${filename}`;
+      // Audio uses /audio/, images use /api/files/
+      const endpoint = type === 'audio' ? `/audio/${filename}` : `/api/files/${filename}`;
       
       const response = await authenticatedFetch(endpoint);
       
