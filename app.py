@@ -161,6 +161,8 @@ if (
     raise ValueError(
         "CRITICAL: Set a secure FLASK_SECRET_KEY (at least 32 characters) in the environment!"
     )
+app.config["UPLOAD_FOLDER"] = "uploads"
+app.config["PDF_THUMBNAIL_FOLDER"] = "uploads/thumbnails/"
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 if os.getenv("FLASK_ENV") == "development":
     os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
