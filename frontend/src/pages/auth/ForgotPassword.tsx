@@ -1,7 +1,7 @@
 import  { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../../utils/apiFetch";
-import { requestOtp as requestOtpApi, verifyOtp as verifyOtpApi, setPassword as setPasswordApi } from "./authApi";
+
 
 const ForgotPasswordPage = () => {
   const navigate = useNavigate();
