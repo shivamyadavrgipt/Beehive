@@ -590,7 +590,7 @@ const handleDownload = async (filename: string, type: 'file' | 'audio' = 'file')
       a.download = filename; // download instead of opening in tab
       document.body.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(url);
+      setTimeout(() => window.URL.revokeObjectURL(url), 100);
       document.body.removeChild(a);
       
       toast.success(`${type === 'file' ? 'File' : 'Audio'} downloaded successfully!`);
