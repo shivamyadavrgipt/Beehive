@@ -249,7 +249,7 @@ def login():
     })
 
     if not user:
-        return jsonify({"error": "User not found"}), 401
+        return jsonify({"error": "Invalid credentials"}), 401
 
     # Check account lockout before touching the password
     lock = get_lock_status(user)
