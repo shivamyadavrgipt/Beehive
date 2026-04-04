@@ -688,8 +688,22 @@ const handleDownload = async (filename: string, type: 'file' | 'audio' = 'file')
   useEffect(() => {
     const pendingDeletions = pendingDeletionRef.current;
     return () => {
-      pendingDeletions.forEach((pending) => {
+      pendingDeletions.forEach((pending, id) => {
+        // Clear the countdown timer to prevent duplicate execution
         clearTimeout(pending.timeoutId);
+        
+        // Execute the deletion immediately in the background upon unmount.
+        // We bypass the standard finalizeDelete to skip UI-dependent state updates.
+        fetch(apiUrl(`/delete/${id}`), {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${getToken() || ''}`
+          },
+          credentials: 'include'
+        }).catch(error => {
+          console.error(`Background cleanup deletion failed for ${id}:`, error);
+        });
+
         toast.dismiss(pending.toastId);
       });
       pendingDeletions.clear();
