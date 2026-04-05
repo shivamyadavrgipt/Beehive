@@ -1,5 +1,4 @@
 import re
-from utils.validation import sanitize_api_query
 from flask import Blueprint, request, jsonify
 from utils.jwt_auth import require_admin_role
 from datetime import datetime, timezone
@@ -12,7 +11,6 @@ from database.userdatahandler import (
     unlock_account,
     get_lock_status,
 )
-from datetime import timezone
 from utils.pagination import parse_pagination_params
 from utils.logger import Logger
 from utils.sanitize import sanitize_api_query
