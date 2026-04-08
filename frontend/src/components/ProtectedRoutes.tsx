@@ -103,20 +103,18 @@ export const ProtectedAudio = ({ filename, className = '', onEnded }: ProtectedA
     let objectUrl: string | null = null;
     let isCancelled = false;
 
-    // Always reset when filename changes, including when it becomes empty.
-    setSrc(null);
-    setError(false);
-
     const fetchAudio = async () => {
+      setSrc(null);
+      setError(false);
       try {
         const token = getToken();
-        const response = await fetch(encodeURI(apiUrl(`/api/audio/${filename}`)), {
-          headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        const response = await fetch(encodeURI(apiUrl('/api/audio/' + filename)), {
+          headers: token ? { 'Authorization': 'Bearer ' + token } : {},
           credentials: 'include'
         });
 
         if (!response.ok) {
-          throw new Error(`Failed to load audio (${response.status})`);
+          throw new Error('Failed to load audio (' + response.status + ')');
         }
 
         const blob = await response.blob();
@@ -126,13 +124,16 @@ export const ProtectedAudio = ({ filename, className = '', onEnded }: ProtectedA
         setSrc(objectUrl);
       } catch (error) {
         if (isCancelled) return;
-        console.error("Failed to load secure audio", error);
+        console.error('Failed to load secure audio', error);
         setError(true);
       }
     };
 
     if (filename) {
       fetchAudio();
+    } else {
+      setSrc(null);
+      setError(false);
     }
 
     return () => {
