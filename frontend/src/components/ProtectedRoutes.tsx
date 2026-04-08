@@ -101,11 +101,14 @@ export const ProtectedAudio = ({ filename, className = '', onEnded }: ProtectedA
 
   useEffect(() => {
     let objectUrl: string | null = null;
+    let isCancelled = false;
+
+    // Always reset when filename changes, including when it becomes empty.
+    setSrc(null);
+    setError(false);
 
     const fetchAudio = async () => {
       try {
-        setSrc(null);
-        setError(false);
         const token = getToken();
         const response = await fetch(encodeURI(apiUrl(`/api/audio/${filename}`)), {
           headers: token ? { 'Authorization': `Bearer ${token}` } : {},
@@ -117,9 +120,12 @@ export const ProtectedAudio = ({ filename, className = '', onEnded }: ProtectedA
         }
 
         const blob = await response.blob();
+        if (isCancelled) return;
+
         objectUrl = URL.createObjectURL(blob);
         setSrc(objectUrl);
       } catch (error) {
+        if (isCancelled) return;
         console.error("Failed to load secure audio", error);
         setError(true);
       }
@@ -130,6 +136,7 @@ export const ProtectedAudio = ({ filename, className = '', onEnded }: ProtectedA
     }
 
     return () => {
+      isCancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [filename]);
