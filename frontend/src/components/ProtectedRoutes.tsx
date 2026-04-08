@@ -97,35 +97,44 @@ export const ProtectedMedia = ({ filename, isPdf = false, className = '', alt = 
 
 export const ProtectedAudio = ({ filename, className = '', onEnded }: ProtectedAudioProps) => {
   const [src, setSrc] = useState<string | null>(null);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     let objectUrl: string | null = null;
 
     const fetchAudio = async () => {
       try {
+        setSrc(null);
+        setError(false);
         const token = getToken();
-        const response = await fetch(encodeURI(apiUrl(`/audio/${filename}`)), {
+        const response = await fetch(encodeURI(apiUrl(`/api/audio/${filename}`)), {
           headers: token ? { 'Authorization': `Bearer ${token}` } : {},
           credentials: 'include'
         });
 
-        if (response.ok) {
-          const blob = await response.blob();
-          objectUrl = URL.createObjectURL(blob);
-          setSrc(objectUrl);
+        if (!response.ok) {
+          throw new Error(`Failed to load audio (${response.status})`);
         }
+
+        const blob = await response.blob();
+        objectUrl = URL.createObjectURL(blob);
+        setSrc(objectUrl);
       } catch (error) {
         console.error("Failed to load secure audio", error);
+        setError(true);
       }
     };
 
-    fetchAudio();
+    if (filename) {
+      fetchAudio();
+    }
 
     return () => {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [filename]);
 
+  if (error) return <div className="text-sm text-red-500 p-2">Failed to load secure audio.</div>;
   if (!src) return <div className="text-sm text-gray-500 p-2 animate-pulse">Loading secure audio...</div>;
 
   return (
