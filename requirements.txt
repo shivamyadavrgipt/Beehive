@@ -64,7 +64,7 @@ google-generativeai==0.8.3
 python-magic==0.4.27
 
 # Basic security (will be enhanced in separate security PR)
-cryptography==46.0.6
+cryptography==46.0.7
 PyJWT==2.12.1
 
 # input validation and sanitization
