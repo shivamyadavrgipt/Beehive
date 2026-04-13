@@ -102,7 +102,8 @@ def request_otp():
         return jsonify({"error": "Invalid purpose"}), 400
 
     otp = create_email_otp(email)
-    current_app.logger.info("[OTP] %s %s: %s", purpose, email, otp)
+    if current_app.debug:
+        current_app.logger.info("[OTP] %s %s: %s", purpose, email, otp)
 
     # send the OTP via email
     try:
