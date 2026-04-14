@@ -3,6 +3,8 @@ import pytest
 import mongomock
 from unittest.mock import patch
 
+from utils.jwt_auth import create_access_token
+
 TEST_SECRET_KEY = 'test-secret-key-minimum-32-chars-long-for-pytest'
 os.environ['FLASK_SECRET_KEY'] = TEST_SECRET_KEY
 os.environ['JWT_SECRET'] = TEST_SECRET_KEY
@@ -42,3 +44,9 @@ def client(app):
 @pytest.fixture
 def runner(app):
     return app.test_cli_runner()
+
+
+@pytest.fixture
+def admin_token(app):
+    with app.app_context():
+        return create_access_token(user_id="mock_admin_id", role="admin")
