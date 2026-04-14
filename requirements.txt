@@ -33,7 +33,7 @@ charset-normalizer==3.4.1
 idna==3.10
 
 # Image processing & PDFs
-Pillow==12.1.1
+Pillow==12.2.0
 PyMuPDF==1.24.14
 
 # Utilities
